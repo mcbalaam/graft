@@ -9,7 +9,7 @@ import (
 )
 
 // Init creates the main graft repo: git init, write configs, initial commit, push.
-func Init(remote, baseURL, repoPath, token string) error {
+func Init(remote, repoPath, token string) error {
 	if git.IsRepo(repoPath) {
 		return fmt.Errorf("✗ repo already exists at %s", repoPath)
 	}
@@ -30,13 +30,11 @@ func Init(remote, baseURL, repoPath, token string) error {
 		return fmt.Errorf("✗ git init: %w", err)
 	}
 
-	// write ~/.config/graft.toml (local, not committed) and <repo>/graft.toml (committed)
-	cfg, err := config.Init(remote, repoPath, baseURL, token)
+	cfg, err := config.Init(remote, repoPath, token)
 	if err != nil {
 		return fmt.Errorf("✗ cannot create config: %w", err)
 	}
 
-	// commit graft.toml into the repo so it's versioned and shared
 	if err := run("add", "graft.toml"); err != nil {
 		return fmt.Errorf("✗ git add: %w", err)
 	}
@@ -51,9 +49,8 @@ func Init(remote, baseURL, repoPath, token string) error {
 		return fmt.Errorf("✗ git push: %w", err)
 	}
 
-	fmt.Printf("✓ graft initialised at %s\n", repoPath)
+	fmt.Printf("✓ graft initialized at %s\n", repoPath)
 	fmt.Printf("  remote:   %s\n", remote)
-	fmt.Printf("  base_url: %s\n", baseURL)
-	fmt.Printf("  local config: %s\n", cfg.RepoConfigPath())
+	fmt.Printf("  base_url: %s\n", cfg.Master.BaseURL)
 	return nil
 }

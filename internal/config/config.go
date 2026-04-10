@@ -12,7 +12,7 @@ import (
 // ~/.config/graft.toml — machine-local, never committed
 type localFile struct {
 	Repo        string `toml:"repo"`
-	GitHubToken string `toml:"github_token"`
+	AccessToken string `toml:"access_token"`
 }
 
 // <repo>/graft.toml — versioned, lives inside the main git repo
@@ -42,7 +42,7 @@ type Blob struct {
 type Config struct {
 	Master      Master
 	Blobs       map[string]Blob
-	GitHubToken string
+	AccessToken string
 	Repo        string // absolute path to the main git repo
 
 	repoConfigPath  string // <repo>/graft.toml
@@ -75,6 +75,10 @@ func LoadFrom(localPath string) (*Config, error) {
 	if lf.Repo == "" {
 		return nil, fmt.Errorf("'repo' not set in %s", localPath)
 	}
+	lf.Repo, err = expandPath(lf.Repo)
+	if err != nil {
+		return nil, fmt.Errorf("cannot expand repo path: %w", err)
+	}
 
 	// 2. read repo config
 	repoConfigPath := filepath.Join(lf.Repo, "graft.toml")
@@ -98,7 +102,7 @@ func LoadFrom(localPath string) (*Config, error) {
 			SubmoduleNaming: rf.Master.SubmoduleNaming,
 		},
 		Blobs:           make(map[string]Blob),
-		GitHubToken:     lf.GitHubToken,
+		AccessToken:     lf.AccessToken,
 		Repo:            lf.Repo,
 		repoConfigPath:  repoConfigPath,
 		localConfigPath: localPath,
@@ -119,8 +123,19 @@ func LoadFrom(localPath string) (*Config, error) {
 	return cfg, nil
 }
 
+// DeriveBaseURL extracts the base URL from a remote URL by stripping the last path segment.
+// git@github.com:user/repo.git  →  git@github.com:user
+// https://github.com/user/repo  →  https://github.com/user
+func DeriveBaseURL(remote string) string {
+	remote = strings.TrimSuffix(remote, ".git")
+	if i := strings.LastIndex(remote, "/"); i != -1 {
+		return remote[:i]
+	}
+	return remote
+}
+
 // Init creates both config files. Called by graft init.
-func Init(remote, repoPath, baseURL, token string) (*Config, error) {
+func Init(remote, repoPath, token string) (*Config, error) {
 	localPath, err := localConfigPath()
 	if err != nil {
 		return nil, err
@@ -135,11 +150,11 @@ func Init(remote, repoPath, baseURL, token string) (*Config, error) {
 	cfg := &Config{
 		Master: Master{
 			Remote:          remote,
-			BaseURL:         baseURL,
+			BaseURL:         DeriveBaseURL(remote),
 			SubmoduleNaming: "config_{name}",
 		},
 		Blobs:           make(map[string]Blob),
-		GitHubToken:     token,
+		AccessToken:     token,
 		Repo:            repoPath,
 		repoConfigPath:  repoConfigPath,
 		localConfigPath: localPath,
@@ -161,8 +176,8 @@ func (c *Config) Save() error {
 
 func saveLocalConfig(cfg *Config) error {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("repo         = %q\n", cfg.Repo))
-	sb.WriteString(fmt.Sprintf("github_token = %q\n", cfg.GitHubToken))
+	sb.WriteString(fmt.Sprintf("repo         = %q\n", collapsePath(cfg.Repo)))
+	sb.WriteString(fmt.Sprintf("access_token = %q\n", cfg.AccessToken))
 
 	if err := os.MkdirAll(filepath.Dir(cfg.localConfigPath), 0755); err != nil {
 		return fmt.Errorf("cannot create config directory: %w", err)
@@ -187,10 +202,11 @@ func saveRepoConfig(cfg *Config) error {
 		if blob.Immutable {
 			flags = append(flags, "immutable")
 		}
+		collapsed := collapsePath(blob.Path)
 		if len(flags) > 0 {
-			sb.WriteString(fmt.Sprintf("%s = %q %s\n", name, blob.Path, strings.Join(flags, " ")))
+			sb.WriteString(fmt.Sprintf("%s = %q %s\n", name, collapsed, strings.Join(flags, " ")))
 		} else {
-			sb.WriteString(fmt.Sprintf("%s = %q\n", name, blob.Path))
+			sb.WriteString(fmt.Sprintf("%s = %q\n", name, collapsed))
 		}
 	}
 
@@ -278,7 +294,11 @@ func parseBlob(raw string) (Blob, error) {
 		}
 	}
 
-	blob := Blob{Path: path}
+	expanded, err := expandPath(path)
+	if err != nil {
+		return Blob{}, err
+	}
+	blob := Blob{Path: expanded}
 	for _, flag := range strings.Fields(rest) {
 		switch flag {
 		case "sudo":
@@ -291,6 +311,30 @@ func parseBlob(raw string) (Blob, error) {
 	}
 
 	return blob, nil
+}
+
+// collapsePath replaces the home directory prefix with ~.
+func collapsePath(path string) string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return path
+	}
+	if strings.HasPrefix(path, home) {
+		return "~" + path[len(home):]
+	}
+	return path
+}
+
+// expandPath replaces a leading ~ with the actual home directory.
+func expandPath(path string) (string, error) {
+	if !strings.HasPrefix(path, "~") {
+		return path, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("cannot determine home directory: %w", err)
+	}
+	return home + path[1:], nil
 }
 
 func localConfigPath() (string, error) {

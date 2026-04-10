@@ -20,20 +20,20 @@ func main() {
 	var err error
 	switch args[0] {
 	case "init":
-		// graft init <remote> <base-url> [--token=xxx] [repo-path]
-		if len(args) < 3 {
-			fatalf("usage: graft init <remote> <base-url> [--token=<token>] [repo-path]\n")
+		// graft init <remote> [--token=xxx] [repo-path]
+		if len(args) < 2 {
+			fatalf("usage: graft init <remote> [--token=<token>] [repo-path]\n")
 		}
 		repoPath := defaultRepoPath()
 		token := ""
-		for _, a := range args[3:] {
+		for _, a := range args[2:] {
 			if strings.HasPrefix(a, "--token=") {
 				token = strings.TrimPrefix(a, "--token=")
 			} else if !strings.HasPrefix(a, "-") {
 				repoPath = a
 			}
 		}
-		err = commands.Init(args[1], args[2], repoPath, token)
+		err = commands.Init(args[1], repoPath, token)
 
 	case "this":
 		// graft this <name> [--sudo]
@@ -110,8 +110,9 @@ func usage() {
 	fmt.Printf("graft %s: a Git backup utility\nusage: graft <command> [args]\n", version)
 	fmt.Print(`
 commands:
-  init <remote> <base-url> [repo-path]
-        initialise graft repo and config
+  init <remote> [--token=<token>] [repo-path]
+        initialize graft repo and config
+        base_url is derived from remote automatically
         repo-path defaults to ~/.local/share/graft
 
   this <name> [--sudo]

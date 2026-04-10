@@ -58,7 +58,7 @@ func This(blobName string, sudo bool) error {
 			"● directory is already a git repo, what to do?",
 			[]string{
 				"add remote and use as-is",
-				"reinitialise (delete .git and start fresh)",
+				"reinitialize (delete .git and start fresh)",
 				"I'll figure it out (cancel)",
 			},
 			0,
@@ -160,9 +160,9 @@ func This(blobName string, sudo bool) error {
 // createRemoteRepo creates a private repo via GitHub API.
 // Skips silently if the repo already exists (422).
 func createRemoteRepo(cfg *config.Config, name string) error {
-	token := cfg.GitHubToken
+	token := cfg.AccessToken
 	if token == "" {
-		return fmt.Errorf("github_token not set in config — add it to graft.toml or create the remote repo manually")
+		return fmt.Errorf("access_token not set in config — add it to graft.toml or create the remote repo manually")
 	}
 
 	body := fmt.Sprintf(`{"name":%q,"private":true}`, name)
