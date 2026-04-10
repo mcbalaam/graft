@@ -1,0 +1,39 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: build linux/amd64
+        run: |
+          GOOS=linux GOARCH=amd64 make build
+          tar czf graft-${{ github.ref_name }}-linux-amd64.tar.gz graft
+          sha256sum graft-${{ github.ref_name }}-linux-amd64.tar.gz > graft-${{ github.ref_name }}-linux-amd64.tar.gz.sha256
+
+      - name: build linux/arm64
+        run: |
+          GOOS=linux GOARCH=arm64 make build
+          tar czf graft-${{ github.ref_name }}-linux-arm64.tar.gz graft
+          sha256sum graft-${{ github.ref_name }}-linux-arm64.tar.gz >> graft-${{ github.ref_name }}-linux-amd64.tar.gz.sha256
+
+      - name: create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            graft-*.tar.gz
+            *.sha256
+          generate_release_notes: true
