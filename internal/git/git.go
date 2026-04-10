@@ -16,7 +16,7 @@ func Run(dir string, args ...string) (string, error) {
 }
 
 func RunSudo(dir string, args ...string) (string, error) {
-	fullArgs := append([]string{"git"}, args...)
+	fullArgs := append([]string{"-E", "git"}, args...)
 	cmd := exec.Command("sudo", fullArgs...)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
