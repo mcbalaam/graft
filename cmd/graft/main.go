@@ -123,7 +123,7 @@ commands:
 
   sync  commit and push all blobs, update main repo refs
 
-  pull  pull updates for all blobs (interactive conflict resolution)
+  pull  pull updates for all blobs
 
   remove <name>
         remove blob from tracking and main repo

@@ -1,7 +1,9 @@
 package commands
 
 import (
+	"bytes"
 	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/mcbalaam/graft/internal/config"
@@ -125,6 +127,10 @@ func This(blobName string, sudo bool) error {
 		}
 	}
 
+	if err := createRemoteRepo(cfg, submoduleName); err != nil {
+		return fmt.Errorf("✗ create remote repo: %w", err)
+	}
+
 	if err := run("push", "--set-upstream", "origin", "master"); err != nil {
 		return fmt.Errorf("✗ git push: %w", err)
 	}
@@ -148,5 +154,34 @@ func This(blobName string, sudo bool) error {
 	}
 
 	fmt.Printf("✓ blob '%s' registered as %s, now tracking\n", blobName, submoduleName)
+	return nil
+}
+
+// createRemoteRepo creates a private repo via GitHub API.
+// Skips silently if the repo already exists (422).
+func createRemoteRepo(cfg *config.Config, name string) error {
+	token := cfg.Master.GitHubToken
+	if token == "" {
+		return fmt.Errorf("github_token not set in config — add it to graft.toml or create the remote repo manually")
+	}
+
+	body := fmt.Sprintf(`{"name":%q,"private":true}`, name)
+	req, err := http.NewRequest("POST", "https://api.github.com/user/repos", bytes.NewBufferString(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("API request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 201 Created — ok, 422 Unprocessable — already exists, both are fine
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusUnprocessableEntity {
+		return fmt.Errorf("unexpected response: %s", resp.Status)
+	}
 	return nil
 }

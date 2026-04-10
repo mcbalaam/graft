@@ -22,6 +22,7 @@ type Master struct {
 	Repo            string `toml:"repo"`
 	SubmoduleNaming string `toml:"submodule_naming"`
 	BaseURL         string `toml:"base_url"`
+	GitHubToken     string `toml:"github_token"`
 }
 
 type Config struct {
@@ -194,6 +195,7 @@ func SaveTo(cfg *Config, path string) error {
 	sb.WriteString(fmt.Sprintf("repo             = %q\n", cfg.Master.Repo))
 	sb.WriteString(fmt.Sprintf("base_url         = %q\n", cfg.Master.BaseURL))
 	sb.WriteString(fmt.Sprintf("submodule_naming = %q\n", cfg.Master.SubmoduleNaming))
+	sb.WriteString(fmt.Sprintf("github_token     = %q\n", cfg.Master.GitHubToken))
 	sb.WriteString("\n[blobs]\n")
 
 	for name, blob := range cfg.Blobs {
