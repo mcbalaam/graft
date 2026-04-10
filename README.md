@@ -38,6 +38,8 @@ Have you ever wished you could back up your `nginx/sites-available` folder and d
 
 ![alt text](images/apply.png)
 
+graft is distributed as a single Go binary, but you can also build it yourself: `make install`.
+
 ---
 
 ## Commands
