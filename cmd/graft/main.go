@@ -20,15 +20,20 @@ func main() {
 	var err error
 	switch args[0] {
 	case "init":
-		// graft init <remote> <base-url> [repo-path]
+		// graft init <remote> <base-url> [--token=xxx] [repo-path]
 		if len(args) < 3 {
-			fatalf("usage: graft init <remote> <base-url> [repo-path]\n")
+			fatalf("usage: graft init <remote> <base-url> [--token=<token>] [repo-path]\n")
 		}
 		repoPath := defaultRepoPath()
-		if len(args) >= 4 {
-			repoPath = args[3]
+		token := ""
+		for _, a := range args[3:] {
+			if strings.HasPrefix(a, "--token=") {
+				token = strings.TrimPrefix(a, "--token=")
+			} else if !strings.HasPrefix(a, "-") {
+				repoPath = a
+			}
 		}
-		err = commands.Init(args[1], args[2], repoPath)
+		err = commands.Init(args[1], args[2], repoPath, token)
 
 	case "this":
 		// graft this <name> [--sudo]

@@ -55,14 +55,14 @@ func Sync() error {
 	}
 
 	// update submodule refs in main repo and push
-	submodules, _ := git.ListSubmodules(cfg.Master.Repo)
+	submodules, _ := git.ListSubmodules(cfg.Repo)
 	if len(submodules) > 0 {
-		git.Run(cfg.Master.Repo, "submodule", "update", "--remote")
-		out, _ := git.Run(cfg.Master.Repo, "status", "--porcelain")
+		git.Run(cfg.Repo, "submodule", "update", "--remote")
+		out, _ := git.Run(cfg.Repo, "status", "--porcelain")
 		if strings.TrimSpace(out) != "" {
-			git.Run(cfg.Master.Repo, "add", "-A")
-			git.Run(cfg.Master.Repo, "commit", "-m", "graft: sync refs")
-			if _, err := git.Run(cfg.Master.Repo, "push"); err != nil {
+			git.Run(cfg.Repo, "add", "-A")
+			git.Run(cfg.Repo, "commit", "-m", "graft: sync refs")
+			if _, err := git.Run(cfg.Repo, "push"); err != nil {
 				fmt.Printf("✗ could not push main repo: %v\n", err)
 			}
 		}

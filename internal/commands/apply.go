@@ -79,7 +79,7 @@ func applyOne(cfg *config.Config, name string, blob config.Blob, force bool) err
 	}
 
 	submoduleName := cfg.SubmoduleName(name)
-	remoteURL, err := git.SubmoduleURL(cfg.Master.Repo, submoduleName)
+	remoteURL, err := git.SubmoduleURL(cfg.Repo, submoduleName)
 	if err != nil {
 		return fmt.Errorf("cannot find remote: %w", err)
 	}

@@ -39,7 +39,7 @@ func Here(blobName string) error {
 	}
 
 	submoduleName := cfg.SubmoduleName(blobName)
-	remoteURL, err := git.SubmoduleURL(cfg.Master.Repo, submoduleName)
+	remoteURL, err := git.SubmoduleURL(cfg.Repo, submoduleName)
 	if err != nil {
 		return fmt.Errorf("✗ cannot find remote for blob '%s': %w", blobName, err)
 	}

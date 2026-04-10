@@ -136,16 +136,16 @@ func This(blobName string, sudo bool) error {
 	}
 
 	// register as submodule in the main repo
-	if err := runIn(cfg.Master.Repo, "submodule", "add", remoteURL, submoduleName); err != nil {
+	if err := runIn(cfg.Repo, "submodule", "add", remoteURL, submoduleName); err != nil {
 		return fmt.Errorf("✗ git submodule add: %w", err)
 	}
-	if err := runIn(cfg.Master.Repo, "add", ".gitmodules"); err != nil {
+	if err := runIn(cfg.Repo, "add", ".gitmodules"); err != nil {
 		return fmt.Errorf("✗ git add .gitmodules: %w", err)
 	}
-	if err := runIn(cfg.Master.Repo, "commit", "-m", "graft: add submodule "+submoduleName); err != nil {
+	if err := runIn(cfg.Repo, "commit", "-m", "graft: add submodule "+submoduleName); err != nil {
 		return fmt.Errorf("✗ git commit: %w", err)
 	}
-	if err := runIn(cfg.Master.Repo, "push"); err != nil {
+	if err := runIn(cfg.Repo, "push"); err != nil {
 		return fmt.Errorf("✗ git push master repo: %w", err)
 	}
 
@@ -160,7 +160,7 @@ func This(blobName string, sudo bool) error {
 // createRemoteRepo creates a private repo via GitHub API.
 // Skips silently if the repo already exists (422).
 func createRemoteRepo(cfg *config.Config, name string) error {
-	token := cfg.Master.GitHubToken
+	token := cfg.GitHubToken
 	if token == "" {
 		return fmt.Errorf("github_token not set in config — add it to graft.toml or create the remote repo manually")
 	}

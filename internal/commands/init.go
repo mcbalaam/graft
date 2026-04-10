@@ -8,8 +8,8 @@ import (
 	"github.com/mcbalaam/graft/internal/git"
 )
 
-// Init creates the main graft repo: git init, write config, initial commit, push.
-func Init(remote, baseURL, repoPath string) error {
+// Init creates the main graft repo: git init, write configs, initial commit, push.
+func Init(remote, baseURL, repoPath, token string) error {
 	if git.IsRepo(repoPath) {
 		return fmt.Errorf("✗ repo already exists at %s", repoPath)
 	}
@@ -30,17 +30,14 @@ func Init(remote, baseURL, repoPath string) error {
 		return fmt.Errorf("✗ git init: %w", err)
 	}
 
-	if _, err := config.Init(remote, repoPath, baseURL); err != nil {
+	// write ~/.config/graft.toml (local, not committed) and <repo>/graft.toml (committed)
+	cfg, err := config.Init(remote, repoPath, baseURL, token)
+	if err != nil {
 		return fmt.Errorf("✗ cannot create config: %w", err)
 	}
 
-	// create a marker file so the initial commit is not empty
-	marker := repoPath + "/.graft"
-	if err := os.WriteFile(marker, []byte("# managed by graft\n"), 0644); err != nil {
-		return fmt.Errorf("✗ cannot create marker file: %w", err)
-	}
-
-	if err := run("add", ".graft"); err != nil {
+	// commit graft.toml into the repo so it's versioned and shared
+	if err := run("add", "graft.toml"); err != nil {
 		return fmt.Errorf("✗ git add: %w", err)
 	}
 	if err := run("commit", "-m", "graft: init"); err != nil {
@@ -57,5 +54,6 @@ func Init(remote, baseURL, repoPath string) error {
 	fmt.Printf("✓ graft initialised at %s\n", repoPath)
 	fmt.Printf("  remote:   %s\n", remote)
 	fmt.Printf("  base_url: %s\n", baseURL)
+	fmt.Printf("  local config: %s\n", cfg.RepoConfigPath())
 	return nil
 }

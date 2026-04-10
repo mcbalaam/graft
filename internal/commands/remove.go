@@ -23,23 +23,23 @@ func Remove(blobName string) error {
 
 	submoduleName := cfg.SubmoduleName(blobName)
 
-	if _, err := git.Run(cfg.Master.Repo, "submodule", "deinit", "-f", submoduleName); err != nil {
+	if _, err := git.Run(cfg.Repo, "submodule", "deinit", "-f", submoduleName); err != nil {
 		return fmt.Errorf("✗ git submodule deinit: %w", err)
 	}
 
-	if _, err := git.Run(cfg.Master.Repo, "rm", "-f", submoduleName); err != nil {
+	if _, err := git.Run(cfg.Repo, "rm", "-f", submoduleName); err != nil {
 		return fmt.Errorf("✗ git rm: %w", err)
 	}
 
-	modulesPath := filepath.Join(cfg.Master.Repo, ".git", "modules", submoduleName)
+	modulesPath := filepath.Join(cfg.Repo, ".git", "modules", submoduleName)
 	if err := os.RemoveAll(modulesPath); err != nil {
 		fmt.Printf("✗ could not clean .git/modules/%s: %v\n", submoduleName, err)
 	}
 
-	if _, err := git.Run(cfg.Master.Repo, "commit", "-m", "graft: remove submodule "+submoduleName); err != nil {
+	if _, err := git.Run(cfg.Repo, "commit", "-m", "graft: remove submodule "+submoduleName); err != nil {
 		return fmt.Errorf("✗ git commit: %w", err)
 	}
-	if _, err := git.Run(cfg.Master.Repo, "push"); err != nil {
+	if _, err := git.Run(cfg.Repo, "push"); err != nil {
 		fmt.Printf("✗ could not push after remove: %v\n", err)
 	}
 
