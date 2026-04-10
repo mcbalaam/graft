@@ -204,7 +204,7 @@ func saveRepoConfig(cfg *Config) error {
 		}
 		collapsed := collapsePath(blob.Path)
 		if len(flags) > 0 {
-			sb.WriteString(fmt.Sprintf("%s = %q %s\n", name, collapsed, strings.Join(flags, " ")))
+			sb.WriteString(fmt.Sprintf("%s = %q\n", name, collapsed+" "+strings.Join(flags, " ")))
 		} else {
 			sb.WriteString(fmt.Sprintf("%s = %q\n", name, collapsed))
 		}

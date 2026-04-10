@@ -18,24 +18,25 @@ Have you ever wished you could back up your `nginx/sites-available` folder and d
 
 ![alt text](images/image-2.png)
 
-4. Sync your configuration:
+...even if it's root owned!
 
-![alt text](images/image-3.png)
+![alt text](images/image-6.png)
 
-5. Watch your blobs get stored in the repository config...
+4. Watch your blobs appear in the repo config:
 
 ![alt text](images/image.png)
 
-6. Clone the main repo on a new machine and restore everything!
+5. Sync your configs...
 
-```bash
-git clone git@github.com:user/backup-repo.git ~/.local/share/graft
-cat > ~/.config/graft.toml <<EOF
-repo         = "~/.local/share/graft"
-github_token = "ghp_xxx"
-EOF
-graft apply
-```
+![alt text](images/sync.png)
+
+6. Clone the main repo on a new machine...
+
+![alt text](images/image-5.png)
+
+7. Restore your configuration!
+
+![alt text](images/apply.png)
 
 ---
 

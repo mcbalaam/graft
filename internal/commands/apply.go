@@ -63,18 +63,27 @@ func Apply(blobName string, force bool) error {
 func applyOne(cfg *config.Config, name string, blob config.Blob, force bool) error {
 	path := blob.Path
 
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		if !force {
-			return fmt.Errorf("path '%s' does not exist, use --force to create", path)
+	_, statErr := os.Stat(path)
+	exists := !os.IsNotExist(statErr)
+
+	if exists {
+		if git.IsRepo(path) {
+			fmt.Printf("  ~ %s: already applied, skipping\n", name)
+			return nil
 		}
-		if blob.Sudo {
-			if err := sudoMkdirChown(path); err != nil {
-				return fmt.Errorf("sudo mkdir '%s': %w", path, err)
-			}
-		} else {
-			if err := os.MkdirAll(path, 0755); err != nil {
-				return fmt.Errorf("mkdir '%s': %w", path, err)
-			}
+		return fmt.Errorf("path '%s' exists but is not a git repo — remove it manually first", path)
+	}
+
+	if !force {
+		return fmt.Errorf("path '%s' does not exist, use --force to create", path)
+	}
+	if blob.Sudo {
+		if err := sudoMkdirChown(path); err != nil {
+			return fmt.Errorf("sudo mkdir '%s': %w", path, err)
+		}
+	} else {
+		if err := os.MkdirAll(path, 0755); err != nil {
+			return fmt.Errorf("mkdir '%s': %w", path, err)
 		}
 	}
 
@@ -84,11 +93,11 @@ func applyOne(cfg *config.Config, name string, blob config.Blob, force bool) err
 		return fmt.Errorf("cannot find remote: %w", err)
 	}
 
-	if _, err := git.Run(path, "clone", remoteURL, "."); err != nil {
-		return fmt.Errorf("git clone: %w", err)
+	if out, err := git.Run(path, "clone", remoteURL, "."); err != nil {
+		return fmt.Errorf("git clone: %w: %s", err, out)
 	}
 
-	fmt.Printf("✓ %s → %s\n", name, path)
+	fmt.Printf("  ✓ %s → %s\n", name, path)
 	return nil
 }
 

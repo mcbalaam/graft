@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 
 	"github.com/mcbalaam/graft/internal/config"
 	"github.com/mcbalaam/graft/internal/git"
@@ -86,7 +87,13 @@ func This(blobName string, sudo bool) error {
 		case 0:
 			// use as-is, adds remote below. phew.
 		case 1: // purging the old .git folder
-			if err := os.RemoveAll(".git"); err != nil {
+			if sudo {
+				cmd := exec.Command("sudo", "rm", "-rf", ".git")
+				cmd.Dir = cwd
+				if out, err := cmd.CombinedOutput(); err != nil {
+					return fmt.Errorf("✗ cannot remove .git: %w: %s", err, out)
+				}
+			} else if err := os.RemoveAll(".git"); err != nil {
 				return fmt.Errorf("✗ cannot remove .git: %w", err)
 			}
 			if err := run("init"); err != nil {
@@ -147,7 +154,7 @@ func This(blobName string, sudo bool) error {
 		return fmt.Errorf("✗ create remote repo: %w", err)
 	}
 
-	if err := runNet("push", "--set-upstream", "origin", "master"); err != nil {
+	if err := runNet("push", "--force", "--set-upstream", "origin", "master"); err != nil {
 		return fmt.Errorf("✗ git push: %w", err)
 	}
 
