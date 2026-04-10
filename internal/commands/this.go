@@ -11,7 +11,7 @@ import (
 
 // Here begins tracking the current directory as a new blob:
 // git init, commit, remote, push, submodule add, write to config.
-func This(blobName string) error {
+func This(blobName string, sudo bool) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("✗ unable to read config: %w", err)
@@ -29,8 +29,13 @@ func This(blobName string) error {
 	submoduleName := cfg.SubmoduleName(blobName)
 	remoteURL := cfg.Master.BaseURL + "/" + submoduleName + ".git"
 
+	gitRun := git.Run
+	if sudo {
+		gitRun = git.RunSudo
+	}
+
 	run := func(args ...string) error {
-		out, err := git.Run(".", args...)
+		out, err := gitRun(".", args...)
 		if err != nil {
 			return fmt.Errorf("%w: %s", err, out)
 		}
@@ -138,7 +143,7 @@ func This(blobName string) error {
 		return fmt.Errorf("✗ git push master repo: %w", err)
 	}
 
-	if err := cfg.AddBlob(blobName, cwd, false, false); err != nil {
+	if err := cfg.AddBlob(blobName, cwd, sudo, false); err != nil {
 		return fmt.Errorf("✗ cannot save config: %w", err)
 	}
 

@@ -31,11 +31,20 @@ func main() {
 		err = commands.Init(args[1], args[2], repoPath)
 
 	case "this":
-		// graft this <name>: start tracking current directory as blob
-		if len(args) < 2 {
-			fatalf("usage: graft this <name>\n")
+		// graft this <name> [--sudo]
+		sudo := false
+		blobName := ""
+		for _, a := range args[1:] {
+			if a == "--sudo" {
+				sudo = true
+			} else if !strings.HasPrefix(a, "-") {
+				blobName = a
+			}
 		}
-		err = commands.This(args[1])
+		if blobName == "" {
+			fatalf("usage: graft this <name> [--sudo]\n")
+		}
+		err = commands.This(blobName, sudo)
 
 	case "here":
 		// graft here [name]: clone existing blob into current directory
@@ -100,8 +109,9 @@ commands:
         initialise graft repo and config
         repo-path defaults to ~/.local/share/graft
 
-  this <name>
+  this <name> [--sudo]
         start tracking current directory as blob <name>
+        --sudo for root-owned directories
 
   here [name]
         clone existing blob into current directory
