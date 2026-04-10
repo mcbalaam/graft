@@ -36,8 +36,18 @@ func This(blobName string, sudo bool) error {
 		gitRun = git.RunSudo
 	}
 
+	// run uses sudo when needed (filesystem ops: init, add, commit, remote config)
 	run := func(args ...string) error {
 		out, err := gitRun(".", args...)
+		if err != nil {
+			return fmt.Errorf("%w: %s", err, out)
+		}
+		return nil
+	}
+
+	// runNet always runs as the current user — push/fetch use SSH keys, not root
+	runNet := func(args ...string) error {
+		out, err := git.Run(".", args...)
 		if err != nil {
 			return fmt.Errorf("%w: %s", err, out)
 		}
@@ -131,7 +141,7 @@ func This(blobName string, sudo bool) error {
 		return fmt.Errorf("✗ create remote repo: %w", err)
 	}
 
-	if err := run("push", "--set-upstream", "origin", "master"); err != nil {
+	if err := runNet("push", "--set-upstream", "origin", "master"); err != nil {
 		return fmt.Errorf("✗ git push: %w", err)
 	}
 
