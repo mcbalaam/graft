@@ -45,9 +45,15 @@ func This(blobName string, sudo bool) error {
 		return nil
 	}
 
-	// runNet always runs as the current user — push/fetch use SSH keys, not root
+	// runNet always runs as the current user — push/fetch use SSH keys, not root.
+	// When sudo is set the .git dir is root-owned, so we pass safe.directory to allow it.
 	runNet := func(args ...string) error {
-		out, err := git.Run(".", args...)
+		var gitArgs []string
+		if sudo {
+			gitArgs = append(gitArgs, "-c", "safe.directory="+cwd)
+		}
+		gitArgs = append(gitArgs, args...)
+		out, err := git.Run(".", gitArgs...)
 		if err != nil {
 			return fmt.Errorf("%w: %s", err, out)
 		}
