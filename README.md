@@ -61,7 +61,7 @@ Flags are set in `graft.toml` after the path:
 ```toml
 [blobs]
 nvim    = "~/.config/nvim"
-waybar  = "/etc/xdg/waybar sudo immitable"
+waybar  = "/etc/xdg/waybar sudo immutable"
 ```
 
 | Flag | Description |
