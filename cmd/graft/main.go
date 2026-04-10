@@ -30,20 +30,20 @@ func main() {
 		}
 		err = commands.Init(args[1], args[2], repoPath)
 
-	case "here":
-		// graft here <name>
-		if len(args) < 2 {
-			fatalf("usage: graft here <name>\n")
-		}
-		err = commands.Here(args[1])
-
 	case "this":
-		// graft this [name]
+		// graft this <name>: start tracking current directory as blob
+		if len(args) < 2 {
+			fatalf("usage: graft this <name>\n")
+		}
+		err = commands.This(args[1])
+
+	case "here":
+		// graft here [name]: clone existing blob into current directory
 		blobName := ""
 		if len(args) >= 2 {
 			blobName = args[1]
 		}
-		err = commands.This(blobName)
+		err = commands.Here(blobName)
 
 	case "apply":
 		// graft apply [--force] [name]
@@ -100,10 +100,10 @@ commands:
         initialise graft repo and config
         repo-path defaults to ~/.local/share/graft
 
-  here <name>
+  this <name>
         start tracking current directory as blob <name>
 
-  this [name]
+  here [name]
         clone existing blob into current directory
         without name: looks up blob by current path in config
 

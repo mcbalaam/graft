@@ -19,8 +19,11 @@ func Init(remote, baseURL, repoPath string) error {
 	}
 
 	run := func(args ...string) error {
-		_, err := git.Run(repoPath, args...)
-		return err
+		out, err := git.Run(repoPath, args...)
+		if err != nil {
+			return fmt.Errorf("%w: %s", err, out)
+		}
+		return nil
 	}
 
 	if err := run("init"); err != nil {
