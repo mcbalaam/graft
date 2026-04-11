@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"strings"
 
 	"github.com/mcbalaam/graft/internal/config"
 	"github.com/mcbalaam/graft/internal/git"
@@ -68,7 +69,12 @@ func applyOne(cfg *config.Config, name string, blob config.Blob, force bool) err
 
 	if exists {
 		if git.IsRepo(path) {
-			fmt.Printf("  ➜ %s: already applied, skipping\n", name)
+			run := git.Run
+			if blob.Sudo {
+				run = git.RunSudo
+			}
+			status := repoStatus(run, path)
+			fmt.Printf("  ➜ %s: already applied, %s\n", name, status)
 			return nil
 		}
 		return fmt.Errorf("✗ path '%s' exists but is not a git repo — remove it manually first", path)
@@ -117,4 +123,13 @@ func sudoMkdirChown(path string) error {
 		return fmt.Errorf("✗ %w: %s", err, out)
 	}
 	return nil
+}
+
+// repoStatus returns a short human-readable local status for an already-applied blob.
+func repoStatus(run func(string, ...string) (string, error), path string) string {
+	out, err := run(path, "status", "--porcelain")
+	if err == nil && strings.TrimSpace(out) != "" {
+		return "has local changes"
+	}
+	return "clean"
 }
