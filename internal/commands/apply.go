@@ -41,7 +41,7 @@ func Apply(blobName string, force bool) error {
 	}
 
 	fmt.Println()
-	fmt.Println("apply summary:")
+	fmt.Printf("[%s] apply summary:\n", cfg.ActiveName())
 	ok, failed := 0, 0
 	for _, r := range results {
 		if r.err != nil {

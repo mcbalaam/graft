@@ -25,7 +25,6 @@ func main() {
 			fatalf("usage: graft init <remote> [repo-path]\n")
 		}
 		repoPath := defaultRepoPath()
-
 		for _, a := range args[2:] {
 			if !strings.HasPrefix(a, "-") {
 				repoPath = a
@@ -71,17 +70,60 @@ func main() {
 		}
 		err = commands.Apply(blobName, force)
 
-	case "sync":
-		err = commands.Sync()
+	case "push":
+		blobName := ""
+		for _, a := range args[1:] {
+			if !strings.HasPrefix(a, "-") {
+				blobName = a
+			}
+		}
+		err = commands.Push(blobName)
 
 	case "pull":
-		err = commands.Pull()
+		force := false
+		blobName := ""
+		for _, a := range args[1:] {
+			switch {
+			case a == "--force":
+				force = true
+			case !strings.HasPrefix(a, "-"):
+				blobName = a
+			}
+		}
+		err = commands.Pull(blobName, force)
 
 	case "remove":
 		if len(args) < 2 {
 			fatalf("usage: graft remove <name>\n")
 		}
 		err = commands.Remove(args[1])
+
+	case "switch":
+		if len(args) < 2 {
+			fatalf("usage: graft switch <name>\n")
+		}
+		err = commands.Switch(args[1])
+
+	case "repo":
+		if len(args) < 2 {
+			fatalf("usage: graft repo <add|remove|list> [args]\n")
+		}
+		switch args[1] {
+		case "add":
+			if len(args) < 3 {
+				fatalf("usage: graft repo add <remote>\n")
+			}
+			err = commands.RepoAdd(args[2])
+		case "remove":
+			if len(args) < 3 {
+				fatalf("usage: graft repo remove <name>\n")
+			}
+			err = commands.RepoRemove(args[2])
+		case "list":
+			err = commands.RepoList()
+		default:
+			fatalf("✗ unknown repo subcommand: %s\n", args[1])
+		}
 
 	case "version", "--version", "-v":
 		fmt.Println("graft", version)
@@ -124,12 +166,27 @@ commands:
         restore blob(s) to paths from config
         --force creates missing directories
 
-  sync  commit and push all blobs, update main repo refs
+  push [name]
+        commit and push blob(s), update main repo refs
 
-  pull  pull updates for all blobs
+  pull [--force] [name]
+        pull updates for blob(s)
+        --force resets to remote HEAD, discarding local changes
 
   remove <name>
         remove blob from tracking and main repo
+
+  switch <name>
+        switch active repo
+
+  repo add <remote>
+        add and clone a remote graft repo
+
+  repo remove <name>
+        remove a repo from config
+
+  repo list
+        list all registered repos
 `)
 }
 

@@ -11,8 +11,10 @@ import (
 
 // ~/.config/graft.toml — machine-local, never committed
 type localFile struct {
-	Repo        string `toml:"repo"`
-	AccessToken string `toml:"access_token"`
+	Repo        string            `toml:"repo"`         // legacy: migrated to repos on first load
+	Active      string            `toml:"active"`
+	AccessToken string            `toml:"access_token"`
+	Repos       map[string]string `toml:"repos"`
 }
 
 // <repo>/graft.toml — versioned, lives inside the main git repo
@@ -43,13 +45,15 @@ type Config struct {
 	Master      Master
 	Blobs       map[string]Blob
 	AccessToken string
-	Repo        string // absolute path to the main git repo
+	Repo        string // absolute path to the active main git repo
 
-	repoConfigPath  string // <repo>/graft.toml
-	localConfigPath string // ~/.config/graft.toml
+	activeName      string
+	repos           map[string]string // name → absolute path
+	repoConfigPath  string            // <repo>/graft.toml
+	localConfigPath string            // ~/.config/graft.toml
 }
 
-// Load reads the local config to find the repo, then loads the repo config.
+// Load reads the local config to find the active repo, then loads the repo config.
 func Load() (*Config, error) {
 	localPath, err := localConfigPath()
 	if err != nil {
@@ -59,7 +63,6 @@ func Load() (*Config, error) {
 }
 
 func LoadFrom(localPath string) (*Config, error) {
-	// 1. read local config
 	localData, err := os.ReadFile(localPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -72,16 +75,45 @@ func LoadFrom(localPath string) (*Config, error) {
 	if _, err := toml.Decode(string(localData), &lf); err != nil {
 		return nil, fmt.Errorf("cannot parse local config: %w", err)
 	}
-	if lf.Repo == "" {
-		return nil, fmt.Errorf("'repo' not set in %s", localPath)
+
+	// migrate legacy single-repo format
+	if len(lf.Repos) == 0 && lf.Repo != "" {
+		expanded, err := expandPath(lf.Repo)
+		if err != nil {
+			return nil, fmt.Errorf("cannot expand repo path: %w", err)
+		}
+		lf.Repos = map[string]string{"default": expanded}
+		lf.Active = "default"
+		lf.Repo = ""
+		// save migrated config
+		cfg := &Config{
+			AccessToken:     lf.AccessToken,
+			activeName:      lf.Active,
+			repos:           lf.Repos,
+			localConfigPath: localPath,
+		}
+		if err := saveLocalConfig(cfg); err != nil {
+			return nil, fmt.Errorf("cannot migrate config: %w", err)
+		}
 	}
-	lf.Repo, err = expandPath(lf.Repo)
+
+	if len(lf.Repos) == 0 {
+		return nil, fmt.Errorf("no repos configured in %s, run 'graft init' first", localPath)
+	}
+	if lf.Active == "" {
+		return nil, fmt.Errorf("'active' not set in %s", localPath)
+	}
+
+	repoPath, ok := lf.Repos[lf.Active]
+	if !ok {
+		return nil, fmt.Errorf("active repo '%s' not found in [repos]", lf.Active)
+	}
+	repoPath, err = expandPath(repoPath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot expand repo path: %w", err)
 	}
 
-	// 2. read repo config
-	repoConfigPath := filepath.Join(lf.Repo, "graft.toml")
+	repoConfigPath := filepath.Join(repoPath, "graft.toml")
 	repoData, err := os.ReadFile(repoConfigPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -95,6 +127,16 @@ func LoadFrom(localPath string) (*Config, error) {
 		return nil, fmt.Errorf("cannot parse repo config: %w", err)
 	}
 
+	// expand all repo paths
+	repos := make(map[string]string, len(lf.Repos))
+	for name, p := range lf.Repos {
+		expanded, err := expandPath(p)
+		if err != nil {
+			return nil, fmt.Errorf("cannot expand path for repo '%s': %w", name, err)
+		}
+		repos[name] = expanded
+	}
+
 	cfg := &Config{
 		Master: Master{
 			Remote:          rf.Master.Remote,
@@ -103,7 +145,9 @@ func LoadFrom(localPath string) (*Config, error) {
 		},
 		Blobs:           make(map[string]Blob),
 		AccessToken:     lf.AccessToken,
-		Repo:            lf.Repo,
+		Repo:            repoPath,
+		activeName:      lf.Active,
+		repos:           repos,
 		repoConfigPath:  repoConfigPath,
 		localConfigPath: localPath,
 	}
@@ -134,18 +178,23 @@ func DeriveBaseURL(remote string) string {
 	return remote
 }
 
-// Init creates both config files. Called by graft init.
+// Init creates both config files for a new repo. Called by graft init.
 func Init(remote, repoPath string) (*Config, error) {
 	localPath, err := localConfigPath()
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err := os.Stat(localPath); err == nil {
-		return nil, fmt.Errorf("local config already exists at %s", localPath)
-	}
-
 	repoConfigPath := filepath.Join(repoPath, "graft.toml")
+
+	// if local config already exists, add this repo to it; otherwise create fresh
+	var existingCfg *Config
+	if _, err := os.Stat(localPath); err == nil {
+		existingCfg, err = LoadFrom(localPath)
+		if err != nil {
+			return nil, fmt.Errorf("cannot load existing config: %w", err)
+		}
+	}
 
 	cfg := &Config{
 		Master: Master{
@@ -154,11 +203,22 @@ func Init(remote, repoPath string) (*Config, error) {
 			SubmoduleNaming: "config_{name}",
 		},
 		Blobs:           make(map[string]Blob),
-		AccessToken:     "",
 		Repo:            repoPath,
 		repoConfigPath:  repoConfigPath,
 		localConfigPath: localPath,
 	}
+
+	if existingCfg != nil {
+		cfg.AccessToken = existingCfg.AccessToken
+		cfg.repos = existingCfg.repos
+	} else {
+		cfg.repos = make(map[string]string)
+	}
+
+	// derive a name from the remote URL (last path segment without .git)
+	name := repoNameFromPath(repoPath)
+	cfg.repos[name] = repoPath
+	cfg.activeName = name
 
 	if err := saveLocalConfig(cfg); err != nil {
 		return nil, err
@@ -174,10 +234,47 @@ func (c *Config) Save() error {
 	return saveRepoConfig(c)
 }
 
+func (c *Config) ActiveName() string {
+	return c.activeName
+}
+
+func (c *Config) Repos() map[string]string {
+	out := make(map[string]string, len(c.repos))
+	for k, v := range c.repos {
+		out[k] = v
+	}
+	return out
+}
+
+func (c *Config) AddRepo(name, path string) error {
+	c.repos[name] = path
+	return saveLocalConfig(c)
+}
+
+func (c *Config) RemoveRepo(name string) error {
+	if _, ok := c.repos[name]; !ok {
+		return fmt.Errorf("repo '%s' not found", name)
+	}
+	delete(c.repos, name)
+	return saveLocalConfig(c)
+}
+
+func (c *Config) SetActive(name string) error {
+	if _, ok := c.repos[name]; !ok {
+		return fmt.Errorf("repo '%s' not found", name)
+	}
+	c.activeName = name
+	return saveLocalConfig(c)
+}
+
 func saveLocalConfig(cfg *Config) error {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("repo         = %q\n", collapsePath(cfg.Repo)))
+	sb.WriteString(fmt.Sprintf("active       = %q\n", cfg.activeName))
 	sb.WriteString(fmt.Sprintf("access_token = %q\n", cfg.AccessToken))
+	sb.WriteString("\n[repos]\n")
+	for name, path := range cfg.repos {
+		sb.WriteString(fmt.Sprintf("%s = %q\n", name, collapsePath(path)))
+	}
 
 	if err := os.MkdirAll(filepath.Dir(cfg.localConfigPath), 0755); err != nil {
 		return fmt.Errorf("cannot create config directory: %w", err)
@@ -346,4 +443,13 @@ func localConfigPath() (string, error) {
 		return "", fmt.Errorf("cannot determine home directory: %w", err)
 	}
 	return filepath.Join(home, ".config", "graft.toml"), nil
+}
+
+// repoNameFromPath derives a short name from a repo path (last path segment).
+func repoNameFromPath(path string) string {
+	base := filepath.Base(path)
+	if base == "" || base == "." {
+		return "default"
+	}
+	return base
 }

@@ -9,11 +9,21 @@ import (
 	"github.com/mcbalaam/graft/internal/prompt"
 )
 
-// Pull fetches updates for all blobs. On merge conflict, offers interactive resolution.
-func Pull() error {
+// Pull fetches updates for blob(s). With --force, resets to remote HEAD discarding local changes.
+// If blobName is empty, all blobs are pulled.
+func Pull(blobName string, force bool) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("✗ unable to read config: %w", err)
+	}
+
+	blobs := cfg.Blobs
+	if blobName != "" {
+		blob, ok := cfg.Blobs[blobName]
+		if !ok {
+			return fmt.Errorf("✗ blob '%s' not found in config", blobName)
+		}
+		blobs = map[string]config.Blob{blobName: blob}
 	}
 
 	type result struct {
@@ -23,10 +33,23 @@ func Pull() error {
 	}
 	var results []result
 
-	for name, blob := range cfg.Blobs {
+	for name, blob := range blobs {
 		run := git.Run
 		if blob.Sudo {
 			run = git.RunSudo
+		}
+
+		if force {
+			if _, err := run(blob.Path, "fetch", "origin"); err != nil {
+				results = append(results, result{name, fmt.Errorf("git fetch: %w", err), ""})
+				continue
+			}
+			if _, err := run(blob.Path, "reset", "--hard", "origin/master"); err != nil {
+				results = append(results, result{name, fmt.Errorf("git reset: %w", err), ""})
+				continue
+			}
+			results = append(results, result{name, nil, "reset to remote"})
+			continue
 		}
 
 		out, err := run(blob.Path, "pull")
@@ -38,7 +61,7 @@ func Pull() error {
 					results = append(results, result{name, nil, "conflict resolved"})
 				}
 			} else {
-				results = append(results, result{name, fmt.Errorf("git pull: %w", err), ""})
+				results = append(results, result{name, fmt.Errorf("git pull: %w: %s", err, out), ""})
 			}
 			continue
 		}
@@ -51,7 +74,7 @@ func Pull() error {
 	}
 
 	fmt.Println()
-	fmt.Println("pull summary:")
+	fmt.Printf("[%s] pull summary:\n", cfg.ActiveName())
 	ok, failed := 0, 0
 	for _, r := range results {
 		if r.err != nil {
@@ -94,7 +117,7 @@ func resolveConflict(run func(string, ...string) (string, error), path, name str
 		run(path, "checkout", "--ours", ".")
 		run(path, "add", ".")
 		_, err = run(path, "commit", "-m", "graft: resolve conflict (ours)")
-	case 2: // auto-merge: stage everything and commit
+	case 2: // auto-merge
 		run(path, "add", ".")
 		_, err = run(path, "commit", "--no-edit")
 		if err != nil {
@@ -102,7 +125,7 @@ func resolveConflict(run func(string, ...string) (string, error), path, name str
 			fmt.Printf("  fix manually: cd %s && git status\n", path)
 			return fmt.Errorf("auto-merge failed")
 		}
-	case 3: // balling out, yout are on your own now. good luck.
+	case 3:
 		fmt.Printf("  fix manually: cd %s && git status\n", path)
 		return fmt.Errorf("skipped by user")
 	}
