@@ -2,7 +2,11 @@
 
 ### graft is a Git backup/versioning utility based on Git submodules
 
-Have you ever wished you could back up your `nginx/sites-available` folder and do it simple and quick? Tinker with your configs without breaking everything in process? graft is here to help!
+Have you ever wished you could back up your `nginx/sites-available` folder and do it simple and quick? Tinker with your configs without breaking everything in process? Store and version your configs on a Git platform? graft is here to help!
+
+![alt text](images/gitrepo.png)
+
+Here's how it's done:
 
 0. Create and configure your Access Token ([here for GitHub](https://github.com/settings/tokens))
 
