@@ -28,9 +28,27 @@ func Sync() error {
 			run = git.RunSudo
 		}
 
+		// push always runs as current user; for sudo blobs the .git is root-owned
+		// so we pass safe.directory to allow it
+		push := func(path string) (string, error) {
+			args := []string{"push", "--set-upstream", "origin", "master"}
+			if blob.Sudo {
+				args = append([]string{"-c", "safe.directory=" + path}, args...)
+			}
+			return git.Run(path, args...)
+		}
+
+		runf := func(args ...string) error {
+			out, err := run(blob.Path, args...)
+			if err != nil {
+				return fmt.Errorf("%w: %s", err, out)
+			}
+			return nil
+		}
+
 		out, err := run(blob.Path, "status", "--porcelain")
 		if err != nil {
-			results = append(results, result{name, fmt.Errorf("git status: %w", err), ""})
+			results = append(results, result{name, fmt.Errorf("git status: %w: %s", err, out), ""})
 			continue
 		}
 		if strings.TrimSpace(out) == "" {
@@ -38,16 +56,16 @@ func Sync() error {
 			continue
 		}
 
-		if _, err := run(blob.Path, "add", "-A"); err != nil {
+		if err := runf("add", "-A"); err != nil {
 			results = append(results, result{name, fmt.Errorf("git add: %w", err), ""})
 			continue
 		}
-		if _, err := run(blob.Path, "commit", "-m", "graft: sync"); err != nil {
+		if err := runf("commit", "-m", "graft: sync"); err != nil {
 			results = append(results, result{name, fmt.Errorf("git commit: %w", err), ""})
 			continue
 		}
-		if _, err := run(blob.Path, "push"); err != nil {
-			results = append(results, result{name, fmt.Errorf("git push: %w", err), ""})
+		if out, err := push(blob.Path); err != nil {
+			results = append(results, result{name, fmt.Errorf("git push: %w: %s", err, out), ""})
 			continue
 		}
 
