@@ -4,13 +4,13 @@
 
 Have you ever wished you could back up your `nginx/sites-available` folder and do it simple and quick? Tinker with your configs without breaking everything in process? graft is here to help!
 
-0. Create and configure your Access Token ([here for GitHub](https://github.com/settings/tokens))
+1. Create and configure your Access Token ([here for GitHub](https://github.com/settings/tokens))
 
-1. Initialize the repository:
+2. Initialize the repository:
 
 `graft init git@github.com:user/backup-repo.git --token=ghp_...`
 
-2. ...or omit the token flag and put it in `.config/graft.toml`:
+...or omit the token flag and put it in `.config/graft.toml`:
 
 ![alt text](images/image-1.png)
 
@@ -61,7 +61,7 @@ Flags are set in `graft.toml` after the path:
 ```toml
 [blobs]
 nvim    = "~/.config/nvim"
-waybar  = "/etc/xdg/waybar" sudo immutable
+waybar  = "/etc/xdg/waybar sudo immutable"
 ```
 
 | Flag | Description |
