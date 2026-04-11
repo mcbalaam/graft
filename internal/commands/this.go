@@ -150,7 +150,7 @@ func This(blobName string, sudo, public bool) error {
 		}
 	}
 
-	if err := createRemoteRepo(cfg, submoduleName, public); err != nil {
+	if err := createRemoteRepo(cfg, submoduleName, cfg.Master.Public || public); err != nil {
 		return fmt.Errorf("✗ create remote repo: %w", err)
 	}
 
@@ -176,7 +176,11 @@ func This(blobName string, sudo, public bool) error {
 		return fmt.Errorf("✗ cannot save config: %w", err)
 	}
 
-	fmt.Printf("✓ blob '%s' registered as %s, now tracking\n", blobName, submoduleName)
+	visibility := "private"
+	if cfg.Master.Public || public {
+		visibility = "public"
+	}
+	fmt.Printf("✓ blob '%s' registered as %s, now tracking (%s)\n", blobName, submoduleName, visibility)
 	return nil
 }
 

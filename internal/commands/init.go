@@ -25,6 +25,16 @@ func Init(remote, repoPath string) error {
 		name = "master"
 	}
 
+	visChoice, err := prompt.Query(
+		"● default visibility for new blobs?",
+		[]string{"private", "public"},
+		0,
+	)
+	if err != nil {
+		return fmt.Errorf("✗ prompt failed: %w", err)
+	}
+	defaultPublic := visChoice == 1
+
 	if err := os.MkdirAll(repoPath, 0755); err != nil {
 		return fmt.Errorf("✗ cannot create repo directory: %w", err)
 	}
@@ -41,7 +51,7 @@ func Init(remote, repoPath string) error {
 		return fmt.Errorf("✗ git init: %w", err)
 	}
 
-	cfg, err := config.Init(remote, repoPath, name)
+	cfg, err := config.Init(remote, repoPath, name, defaultPublic)
 	if err != nil {
 		return fmt.Errorf("✗ cannot create config: %w", err)
 	}

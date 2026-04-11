@@ -50,13 +50,43 @@ graft is distributed as a single Go binary, but you can also build it yourself: 
 
 | Command | Description |
 |---|---|
-| `graft init <remote> <base-url>` | Initialise main repo and config |
-| `graft this <name> [--sudo]` | Start tracking current directory as blob |
+| `graft init <remote>` | Initialise main repo and config |
+| `graft this <name> [--sudo] [--public]` | Start tracking current directory as blob |
 | `graft here [name]` | Clone existing blob into current directory |
 | `graft apply [--force] [name]` | Restore blob(s) to paths from config |
-| `graft sync` | Commit and push all blobs |
-| `graft pull` | Pull updates for all blobs |
+| `graft push [name]` | Commit and push blob(s) |
+| `graft pull [--force] [name]` | Pull updates for blob(s) |
 | `graft remove <name>` | Remove blob from tracking |
+| `graft switch <name>` | Switch active repo |
+| `graft repo add <remote>` | Clone and register a remote graft repo |
+| `graft repo remove <name>` | Remove a repo from config |
+| `graft repo list` | List all registered repos |
+
+## Multiple repos
+
+graft supports multiple repos — useful for testing someone else's dotfiles without touching your own.
+
+```bash
+# register and clone a remote graft repo
+graft repo add git@github.com:user/their-dotfiles.git
+
+# see what's registered
+graft repo list
+
+# switch to it
+graft switch their-dotfiles
+
+# restore their blobs
+graft apply --force
+
+# switch back
+graft switch master
+graft apply
+```
+
+Active repo is shown in all command output: `[master] push summary:`.
+
+Default visibility for new blobs is set during `graft init` and stored in `graft.toml` as `public = false`. Override per-blob with `--public`.
 
 ## Blob flags
 

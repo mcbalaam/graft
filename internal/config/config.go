@@ -27,12 +27,14 @@ type rawMaster struct {
 	Remote          string `toml:"remote"`
 	BaseURL         string `toml:"base_url"`
 	SubmoduleNaming string `toml:"submodule_naming"`
+	Public          bool   `toml:"public"`
 }
 
 type Master struct {
 	Remote          string
 	BaseURL         string
 	SubmoduleNaming string
+	Public          bool
 }
 
 type Blob struct {
@@ -142,6 +144,7 @@ func LoadFrom(localPath string) (*Config, error) {
 			Remote:          rf.Master.Remote,
 			BaseURL:         rf.Master.BaseURL,
 			SubmoduleNaming: rf.Master.SubmoduleNaming,
+			Public:          rf.Master.Public,
 		},
 		Blobs:           make(map[string]Blob),
 		AccessToken:     lf.AccessToken,
@@ -179,7 +182,7 @@ func DeriveBaseURL(remote string) string {
 }
 
 // Init creates both config files for a new repo. Called by graft init.
-func Init(remote, repoPath, name string) (*Config, error) {
+func Init(remote, repoPath, name string, public bool) (*Config, error) {
 	localPath, err := localConfigPath()
 	if err != nil {
 		return nil, err
@@ -201,6 +204,7 @@ func Init(remote, repoPath, name string) (*Config, error) {
 			Remote:          remote,
 			BaseURL:         DeriveBaseURL(remote),
 			SubmoduleNaming: "config_{name}",
+			Public:          public,
 		},
 		Blobs:           make(map[string]Blob),
 		Repo:            repoPath,
@@ -287,6 +291,7 @@ func saveRepoConfig(cfg *Config) error {
 	sb.WriteString(fmt.Sprintf("remote           = %q\n", cfg.Master.Remote))
 	sb.WriteString(fmt.Sprintf("base_url         = %q\n", cfg.Master.BaseURL))
 	sb.WriteString(fmt.Sprintf("submodule_naming = %q\n", cfg.Master.SubmoduleNaming))
+	sb.WriteString(fmt.Sprintf("public           = %t\n", cfg.Master.Public))
 	sb.WriteString("\n[blobs]\n")
 
 	for name, blob := range cfg.Blobs {
