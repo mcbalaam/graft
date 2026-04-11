@@ -100,7 +100,7 @@ func resolveConflict(run func(string, ...string) (string, error), path, name str
 			"their version (theirs)",
 			"my version (ours)",
 			"auto-merge (commit as-is)",
-			"skip (I'll fix it myself)",
+			"skip (I'll figure it out)",
 		},
 		3,
 	)

@@ -49,8 +49,8 @@ func Here(blobName string) error {
 	blobAbsPath, _ := filepath.Abs(blob.Path)
 	if blobAbsPath != cwd {
 		if blob.Immutable {
-			fmt.Printf("blob '%s' is immutable (configured path: %s)\n", blobName, blob.Path)
-			fmt.Println("  cloning here, config will not be updated")
+			fmt.Printf("● watch out: blob '%s' is immutable (configured path: %s)\n", blobName, blob.Path)
+			fmt.Println("  still cloning here, but this path will not be updated or tracked")
 		} else {
 			choice, err := prompt.Query(
 				fmt.Sprintf("● config path differs\n  config:  %s\n  current: %s", blob.Path, cwd),

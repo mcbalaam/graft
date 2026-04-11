@@ -33,20 +33,26 @@ func main() {
 		err = commands.Init(args[1], repoPath)
 
 	case "this":
-		// graft this <name> [--sudo]
+		// graft this <name> [--sudo] [--public]
 		sudo := false
+		public := false
 		blobName := ""
 		for _, a := range args[1:] {
-			if a == "--sudo" {
+			switch a {
+			case "--sudo":
 				sudo = true
-			} else if !strings.HasPrefix(a, "-") {
-				blobName = a
+			case "--public":
+				public = true
+			default:
+				if !strings.HasPrefix(a, "-") {
+					blobName = a
+				}
 			}
 		}
 		if blobName == "" {
-			fatalf("usage: graft this <name> [--sudo]\n")
+			fatalf("usage: graft this <name> [--sudo] [--public]\n")
 		}
-		err = commands.This(blobName, sudo)
+		err = commands.This(blobName, sudo, public)
 
 	case "here":
 		// graft here [name]: clone existing blob into current directory
@@ -154,9 +160,10 @@ commands:
         initialize graft repo and config
         repo-path defaults to ~/.local/share/graft
 
-  this <name> [--sudo]
+  this <name> [--sudo] [--public]
         start tracking current directory as blob <name>
         --sudo for root-owned directories
+        --public makes the remote repo public (default: private)
 
   here [name]
         clone existing blob into current directory

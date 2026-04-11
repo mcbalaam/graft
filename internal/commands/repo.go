@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/mcbalaam/graft/internal/config"
 	"github.com/mcbalaam/graft/internal/git"
@@ -17,12 +18,14 @@ func RepoAdd(remote string) error {
 		return fmt.Errorf("✗ unable to read config: %w", err)
 	}
 
-	name, err := prompt.Ask("repo name (leave empty for 'default'): ")
+	defaultName := strings.TrimSuffix(filepath.Base(remote), ".git")
+	input, err := prompt.Ask(fmt.Sprintf("repo name [%s]: ", defaultName))
 	if err != nil {
 		return fmt.Errorf("✗ prompt failed: %w", err)
 	}
+	name := strings.TrimSpace(input)
 	if name == "" {
-		name = "default"
+		name = defaultName
 	}
 
 	repos := cfg.Repos()

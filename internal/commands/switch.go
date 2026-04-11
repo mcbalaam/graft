@@ -43,13 +43,13 @@ func Switch(name string) error {
 	}
 
 	if len(dirty) > 0 {
-		fmt.Printf("● unsaved changes in: %s\n", strings.Join(dirty, ", "))
+		fmt.Printf("● unsaved changes in %s\n", strings.Join(dirty, ", "))
 		choice, err := prompt.Query(
 			"what to do?",
 			[]string{
-				"overwrite (discard changes)",
+				"overwrite (discard local changes)",
 				"sync current repo first, then switch",
-				"cancel",
+				"I'll figure it out (cancel)",
 			},
 			2,
 		)
@@ -75,6 +75,6 @@ func Switch(name string) error {
 	}
 
 	fmt.Printf("✓ switched to '%s'\n", name)
-	fmt.Println("  run 'graft apply' to restore blobs from the new repo")
+	fmt.Println("  run 'graft apply [name]' to restore blobs from the new repo")
 	return nil
 }

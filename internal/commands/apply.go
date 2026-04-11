@@ -68,14 +68,14 @@ func applyOne(cfg *config.Config, name string, blob config.Blob, force bool) err
 
 	if exists {
 		if git.IsRepo(path) {
-			fmt.Printf("  ~ %s: already applied, skipping\n", name)
+			fmt.Printf("  ➜ %s: already applied, skipping\n", name)
 			return nil
 		}
-		return fmt.Errorf("path '%s' exists but is not a git repo — remove it manually first", path)
+		return fmt.Errorf("✗ path '%s' exists but is not a git repo — remove it manually first", path)
 	}
 
 	if !force {
-		return fmt.Errorf("path '%s' does not exist, use --force to create", path)
+		return fmt.Errorf("✗ path '%s' does not exist, use --force to create", path)
 	}
 	if blob.Sudo {
 		if err := sudoMkdirChown(path); err != nil {
@@ -83,18 +83,18 @@ func applyOne(cfg *config.Config, name string, blob config.Blob, force bool) err
 		}
 	} else {
 		if err := os.MkdirAll(path, 0755); err != nil {
-			return fmt.Errorf("mkdir '%s': %w", path, err)
+			return fmt.Errorf("✗ mkdir '%s': %w", path, err)
 		}
 	}
 
 	submoduleName := cfg.SubmoduleName(name)
 	remoteURL, err := git.SubmoduleURL(cfg.Repo, submoduleName)
 	if err != nil {
-		return fmt.Errorf("cannot find remote: %w", err)
+		return fmt.Errorf("✗ cannot find remote: %w", err)
 	}
 
 	if out, err := git.Run(path, "clone", remoteURL, "."); err != nil {
-		return fmt.Errorf("git clone: %w: %s", err, out)
+		return fmt.Errorf("✗ git clone: %w: %s", err, out)
 	}
 
 	fmt.Printf("  ✓ %s → %s\n", name, path)
@@ -110,11 +110,11 @@ func sudoMkdirChown(path string) error {
 
 	u, err := user.Current()
 	if err != nil {
-		return fmt.Errorf("cannot determine current user: %w", err)
+		return fmt.Errorf("✗ cannot determine current user: %w", err)
 	}
 
 	if out, err := exec.Command("sudo", "chown", u.Username, path).CombinedOutput(); err != nil {
-		return fmt.Errorf("%w: %s", err, out)
+		return fmt.Errorf("✗ %w: %s", err, out)
 	}
 	return nil
 }

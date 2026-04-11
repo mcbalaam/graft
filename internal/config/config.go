@@ -179,7 +179,7 @@ func DeriveBaseURL(remote string) string {
 }
 
 // Init creates both config files for a new repo. Called by graft init.
-func Init(remote, repoPath string) (*Config, error) {
+func Init(remote, repoPath, name string) (*Config, error) {
 	localPath, err := localConfigPath()
 	if err != nil {
 		return nil, err
@@ -215,8 +215,6 @@ func Init(remote, repoPath string) (*Config, error) {
 		cfg.repos = make(map[string]string)
 	}
 
-	// derive a name from the remote URL (last path segment without .git)
-	name := repoNameFromPath(repoPath)
 	cfg.repos[name] = repoPath
 	cfg.activeName = name
 

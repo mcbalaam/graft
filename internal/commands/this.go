@@ -14,7 +14,7 @@ import (
 
 // Here begins tracking the current directory as a new blob:
 // git init, commit, remote, push, submodule add, write to config.
-func This(blobName string, sudo bool) error {
+func This(blobName string, sudo, public bool) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("✗ unable to read config: %w", err)
@@ -150,7 +150,7 @@ func This(blobName string, sudo bool) error {
 		}
 	}
 
-	if err := createRemoteRepo(cfg, submoduleName); err != nil {
+	if err := createRemoteRepo(cfg, submoduleName, public); err != nil {
 		return fmt.Errorf("✗ create remote repo: %w", err)
 	}
 
@@ -182,13 +182,13 @@ func This(blobName string, sudo bool) error {
 
 // createRemoteRepo creates a private repo via GitHub API.
 // Skips silently if the repo already exists (422).
-func createRemoteRepo(cfg *config.Config, name string) error {
+func createRemoteRepo(cfg *config.Config, name string, public bool) error {
 	token := cfg.AccessToken
 	if token == "" {
 		return fmt.Errorf("access_token not set in config — add it to graft.toml or create the remote repo manually")
 	}
 
-	body := fmt.Sprintf(`{"name":%q,"private":true}`, name)
+	body := fmt.Sprintf(`{"name":%q,"private":%t}`, name, !public)
 	req, err := http.NewRequest("POST", "https://api.github.com/user/repos", bytes.NewBufferString(body))
 	if err != nil {
 		return err

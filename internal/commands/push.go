@@ -58,7 +58,7 @@ func Push(blobName string) error {
 
 		out, err := run(blob.Path, "status", "--porcelain")
 		if err != nil {
-			results = append(results, result{name, fmt.Errorf("git status: %w: %s", err, out), ""})
+			results = append(results, result{name, fmt.Errorf("✗ git status: %w: %s", err, out), ""})
 			continue
 		}
 		if strings.TrimSpace(out) == "" {
@@ -67,15 +67,15 @@ func Push(blobName string) error {
 		}
 
 		if err := runf("add", "-A"); err != nil {
-			results = append(results, result{name, fmt.Errorf("git add: %w", err), ""})
+			results = append(results, result{name, fmt.Errorf("✗ git add: %w", err), ""})
 			continue
 		}
 		if err := runf("commit", "-m", "graft: push"); err != nil {
-			results = append(results, result{name, fmt.Errorf("git commit: %w", err), ""})
+			results = append(results, result{name, fmt.Errorf("✗ git commit: %w", err), ""})
 			continue
 		}
 		if out, err := pushBlob(blob.Path); err != nil {
-			results = append(results, result{name, fmt.Errorf("git push: %w: %s", err, out), ""})
+			results = append(results, result{name, fmt.Errorf("✗ git push: %w: %s", err, out), ""})
 			continue
 		}
 
