@@ -135,7 +135,7 @@ func DeriveBaseURL(remote string) string {
 }
 
 // Init creates both config files. Called by graft init.
-func Init(remote, repoPath, token string) (*Config, error) {
+func Init(remote, repoPath string) (*Config, error) {
 	localPath, err := localConfigPath()
 	if err != nil {
 		return nil, err
@@ -154,7 +154,7 @@ func Init(remote, repoPath, token string) (*Config, error) {
 			SubmoduleNaming: "config_{name}",
 		},
 		Blobs:           make(map[string]Blob),
-		AccessToken:     token,
+		AccessToken:     "",
 		Repo:            repoPath,
 		repoConfigPath:  repoConfigPath,
 		localConfigPath: localPath,

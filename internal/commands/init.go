@@ -9,7 +9,7 @@ import (
 )
 
 // Init creates the main graft repo: git init, write configs, initial commit, push.
-func Init(remote, repoPath, token string) error {
+func Init(remote, repoPath string) error {
 	if git.IsRepo(repoPath) {
 		return fmt.Errorf("✗ repo already exists at %s", repoPath)
 	}
@@ -30,7 +30,7 @@ func Init(remote, repoPath, token string) error {
 		return fmt.Errorf("✗ git init: %w", err)
 	}
 
-	cfg, err := config.Init(remote, repoPath, token)
+	cfg, err := config.Init(remote, repoPath)
 	if err != nil {
 		return fmt.Errorf("✗ cannot create config: %w", err)
 	}
