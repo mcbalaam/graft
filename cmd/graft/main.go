@@ -110,7 +110,6 @@ func usage() {
 commands:
   init <remote> [repo-path]
         initialize graft repo and config
-        base_url is derived from remote automatically
         repo-path defaults to ~/.local/share/graft
 
   this <name> [--sudo]
