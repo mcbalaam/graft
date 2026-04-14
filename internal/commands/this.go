@@ -154,7 +154,7 @@ func This(blobName string, sudo, public bool) error {
 		return fmt.Errorf("✗ create remote repo: %w", err)
 	}
 
-	if err := runNet("push", "--force", "--set-upstream", "origin", "master"); err != nil {
+	if err := runNet("push", "--force", "--set-upstream", "origin", "HEAD"); err != nil {
 		return fmt.Errorf("✗ git push: %w", err)
 	}
 

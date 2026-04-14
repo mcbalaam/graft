@@ -65,7 +65,7 @@ func Init(remote, repoPath string) error {
 	if err := run("remote", "add", "origin", remote); err != nil {
 		return fmt.Errorf("✗ git remote add: %w", err)
 	}
-	if err := run("push", "--set-upstream", "origin", "master"); err != nil {
+	if err := run("push", "--set-upstream", "origin", "HEAD"); err != nil {
 		return fmt.Errorf("✗ git push: %w", err)
 	}
 

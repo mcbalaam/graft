@@ -44,7 +44,7 @@ func Pull(blobName string, force bool) error {
 				results = append(results, result{name, fmt.Errorf("git fetch: %w", err), ""})
 				continue
 			}
-			if _, err := run(blob.Path, "reset", "--hard", "origin/master"); err != nil {
+			if _, err := run(blob.Path, "reset", "--hard", "@{upstream}"); err != nil {
 				results = append(results, result{name, fmt.Errorf("git reset: %w", err), ""})
 				continue
 			}

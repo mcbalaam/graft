@@ -41,7 +41,7 @@ func Push(blobName string) error {
 		// push always runs as current user; for sudo blobs the .git is root-owned
 		// so we pass safe.directory to allow it
 		pushBlob := func(path string) (string, error) {
-			args := []string{"push", "--set-upstream", "origin", "master"}
+			args := []string{"push", "--set-upstream", "origin", "HEAD"}
 			if blob.Sudo {
 				args = append([]string{"-c", "safe.directory=" + path}, args...)
 			}
