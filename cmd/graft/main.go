@@ -104,6 +104,24 @@ func main() {
 		}
 		err = commands.Pull(blobName, force)
 
+	case "undo":
+		blobName := ""
+		for _, a := range args[1:] {
+			if !strings.HasPrefix(a, "-") {
+				blobName = a
+			}
+		}
+		err = commands.Undo(blobName)
+
+	case "reset":
+		blobName := ""
+		for _, a := range args[1:] {
+			if !strings.HasPrefix(a, "-") {
+				blobName = a
+			}
+		}
+		err = commands.Reset(blobName)
+
 	case "remove":
 		if len(args) < 2 {
 			fatalf("usage: graft remove <name>\n")
@@ -189,6 +207,14 @@ commands:
 
   list
         list all blobs in the active repo
+
+  undo [name]
+        revert last commit on blob and push the revert
+        without name: resolves blob from current directory
+
+  reset [name]
+        hard-reset blob to remote HEAD, discarding local changes
+        without name: resolves blob from current directory
 
   remove <name>
         remove blob from tracking and main repo

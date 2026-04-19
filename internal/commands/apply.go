@@ -108,7 +108,7 @@ func applyOne(cfg *config.Config, name string, blob config.Blob, force bool) err
 
 	if blob.Meta {
 		if err := applyMeta(path, blob.Sudo); err != nil {
-			fmt.Printf("  ⚠ %s: meta: %v\n", name, err)
+			fmt.Printf("  ✗ %s: meta: %v\n", name, err)
 		}
 	}
 	return nil

@@ -21,7 +21,7 @@ func Collect(blobPath string) (*BlobMeta, error) {
 
 	err := filepath.Walk(blobPath, func(abs string, info os.FileInfo, err error) error {
 		if err != nil {
-			fmt.Printf("  ⚠ meta: cannot stat %s: %v\n", abs, err)
+			fmt.Printf("  ✗ meta: cannot stat %s: %v\n", abs, err)
 			return nil
 		}
 
@@ -36,7 +36,7 @@ func Collect(blobPath string) (*BlobMeta, error) {
 
 		fm, err := collectOne(abs, info)
 		if err != nil {
-			fmt.Printf("  ⚠ meta: %s: %v\n", rel, err)
+			fmt.Printf("  ✗ meta: %s: %v\n", rel, err)
 			return nil
 		}
 		m.Files[rel] = fm
