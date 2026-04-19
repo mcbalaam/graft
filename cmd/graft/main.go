@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/mcbalaam/graft/internal/commands"
+	"github.com/mcbalaam/graft/internal/prompt"
 )
 
 var version = "dev"
@@ -16,6 +17,17 @@ func main() {
 		usage()
 		os.Exit(0)
 	}
+
+	// strip --no-interactive globally before command dispatch
+	filtered := args[:0]
+	for _, a := range args {
+		if a == "--no-interactive" {
+			prompt.NoInteractive = true
+		} else {
+			filtered = append(filtered, a)
+		}
+	}
+	args = filtered
 
 	var err error
 	switch args[0] {

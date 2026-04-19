@@ -7,7 +7,14 @@ import (
 	"strings"
 )
 
+// NoInteractive disables all interactive prompts when set to true.
+// Prompts fall back to their defaultChoice; those with no default return an error.
+var NoInteractive bool
+
 func isInteractive() bool {
+	if NoInteractive {
+		return false
+	}
 	fi, err := os.Stdin.Stat()
 	if err != nil {
 		return false
