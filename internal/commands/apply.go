@@ -9,6 +9,7 @@ import (
 
 	"github.com/mcbalaam/graft/internal/config"
 	"github.com/mcbalaam/graft/internal/git"
+	"github.com/mcbalaam/graft/internal/meta"
 )
 
 // Apply restores blob(s) by cloning them to the paths recorded in config.
@@ -104,7 +105,24 @@ func applyOne(cfg *config.Config, name string, blob config.Blob, force bool) err
 	}
 
 	fmt.Printf("  ✓ %s → %s\n", name, path)
+
+	if blob.Meta {
+		if err := applyMeta(path, blob.Sudo); err != nil {
+			fmt.Printf("  ⚠ %s: meta: %v\n", name, err)
+		}
+	}
 	return nil
+}
+
+func applyMeta(path string, sudo bool) error {
+	m, err := meta.Load(path)
+	if err != nil {
+		return err
+	}
+	if len(m.Files) == 0 {
+		return nil
+	}
+	return meta.Apply(path, m, sudo)
 }
 
 // sudoMkdirChown creates path via sudo then chowns it to the current user,

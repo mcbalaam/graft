@@ -6,15 +6,17 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"sort"
 
 	"github.com/mcbalaam/graft/internal/config"
 	"github.com/mcbalaam/graft/internal/git"
+	"github.com/mcbalaam/graft/internal/meta"
 	"github.com/mcbalaam/graft/internal/prompt"
 )
 
 // Here begins tracking the current directory as a new blob:
 // git init, commit, remote, push, submodule add, write to config.
-func This(blobName string, sudo, public bool) error {
+func This(blobName string, sudo, public, metaFlag bool) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("✗ unable to read config: %w", err)
@@ -109,13 +111,37 @@ func This(blobName string, sudo, public bool) error {
 		}
 	}
 
+	// collect metadata and optionally write .graft-meta.toml before the first commit
+	metaEnabled, err := resolveMetaFlag(cwd, metaFlag)
+	if err != nil {
+		return err
+	}
+	if metaEnabled {
+		m, err := meta.Collect(cwd)
+		if err != nil {
+			return fmt.Errorf("✗ meta collect: %w", err)
+		}
+		if err := meta.Save(cwd, m); err != nil {
+			return fmt.Errorf("✗ meta save: %w", err)
+		}
+	}
+
 	// initial commit if no commits yet (shouldn't be any? who knows!)
-	if !git.HasCommits(".") {
+	hasCommits := git.HasCommits(".")
+	if !hasCommits {
 		if err := run("add", "."); err != nil {
 			return fmt.Errorf("✗ git add: %w", err)
 		}
 		if err := run("commit", "-m", "graft: init "+blobName); err != nil {
 			return fmt.Errorf("✗ git commit: %w", err)
+		}
+	} else if metaEnabled {
+		// existing repo: commit meta file separately
+		if err := run("add", meta.FileName); err != nil {
+			return fmt.Errorf("✗ git add meta: %w", err)
+		}
+		if err := run("commit", "-m", "graft: add meta"); err != nil {
+			return fmt.Errorf("✗ git commit meta: %w", err)
 		}
 	}
 
@@ -172,7 +198,7 @@ func This(blobName string, sudo, public bool) error {
 		return fmt.Errorf("✗ git push master repo: %w", err)
 	}
 
-	if err := cfg.AddBlob(blobName, cwd, sudo, false); err != nil {
+	if err := cfg.AddBlob(blobName, cwd, sudo, false, metaEnabled); err != nil {
 		return fmt.Errorf("✗ cannot save config: %w", err)
 	}
 
@@ -182,6 +208,51 @@ func This(blobName string, sudo, public bool) error {
 	}
 	fmt.Printf("✓ blob '%s' registered as %s, now tracking (%s)\n", blobName, submoduleName, visibility)
 	return nil
+}
+
+// resolveMetaFlag returns whether meta tracking should be enabled.
+// If metaFlag is true, returns immediately. Otherwise collects metadata
+// and queries the user when non-default attributes are found.
+func resolveMetaFlag(dir string, metaFlag bool) (bool, error) {
+	if metaFlag {
+		return true, nil
+	}
+	m, err := meta.Collect(dir)
+	if err != nil {
+		return false, fmt.Errorf("✗ meta collect: %w", err)
+	}
+	nonDefault := m.NonDefaultFiles()
+	if len(nonDefault) == 0 {
+		return false, nil
+	}
+
+	sort.Strings(nonDefault)
+	fmt.Printf("● found files with non-default permissions/ownership:\n")
+	for _, p := range nonDefault {
+		fm := m.Files[p]
+		fmt.Printf("    %-40s %s:%s  %s\n", p, fm.User, fm.Group, fm.Mode)
+	}
+
+	choice, err := prompt.Query(
+		"● enable meta tracking to preserve ownership/permissions on restore?",
+		[]string{
+			"yes, enable meta for this blob",
+			"no, skip metadata tracking",
+			"cancel",
+		},
+		1,
+	)
+	if err != nil {
+		return false, fmt.Errorf("✗ prompt: %w", err)
+	}
+	switch choice {
+	case 0:
+		return true, nil
+	case 1:
+		return false, nil
+	default:
+		return false, fmt.Errorf("cancelled")
+	}
 }
 
 // createRemoteRepo creates a private repo via GitHub API.

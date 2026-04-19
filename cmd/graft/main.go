@@ -33,9 +33,10 @@ func main() {
 		err = commands.Init(args[1], repoPath)
 
 	case "this":
-		// graft this <name> [--sudo] [--public]
+		// graft this <name> [--sudo] [--public] [--meta]
 		sudo := false
 		public := false
+		metaFlag := false
 		blobName := ""
 		for _, a := range args[1:] {
 			switch a {
@@ -43,6 +44,8 @@ func main() {
 				sudo = true
 			case "--public":
 				public = true
+			case "--meta":
+				metaFlag = true
 			default:
 				if !strings.HasPrefix(a, "-") {
 					blobName = a
@@ -50,9 +53,9 @@ func main() {
 			}
 		}
 		if blobName == "" {
-			fatalf("usage: graft this <name> [--sudo] [--public]\n")
+			fatalf("usage: graft this <name> [--sudo] [--public] [--meta]\n")
 		}
-		err = commands.This(blobName, sudo, public)
+		err = commands.This(blobName, sudo, public, metaFlag)
 
 	case "here":
 		// graft here [name]: clone existing blob into current directory
@@ -75,6 +78,9 @@ func main() {
 			}
 		}
 		err = commands.Apply(blobName, force)
+
+	case "list":
+		err = commands.List()
 
 	case "push":
 		blobName := ""
@@ -160,10 +166,11 @@ commands:
         initialize graft repo and config
         repo-path defaults to ~/.local/share/graft
 
-  this <name> [--sudo] [--public]
+  this <name> [--sudo] [--public] [--meta]
         start tracking current directory as blob <name>
         --sudo for root-owned directories
         --public makes the remote repo public (default: private)
+        --meta preserve owner/group/permissions/xattr/acl/caps on restore
 
   here [name]
         clone existing blob into current directory
@@ -179,6 +186,9 @@ commands:
   pull [--force] [name]
         pull updates for blob(s)
         --force resets to remote HEAD, discarding local changes
+
+  list
+        list all blobs in the active repo
 
   remove <name>
         remove blob from tracking and main repo

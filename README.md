@@ -102,3 +102,9 @@ waybar  = "/etc/xdg/waybar sudo immutable"
 |---|---|
 | `sudo` | Directory is root-owned; graft uses sudo for `mkdir`-ing/`chown`-ing |
 | `immutable` | Path cannot be reassigned via `graft here` |
+
+---
+
+## Disclaimer
+
+graft is a Git wrapper. It doesn't encrypt, modify or filter any of your data. Treat the remote as fully trusted — graft assumes it always is.

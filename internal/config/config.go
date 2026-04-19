@@ -41,6 +41,7 @@ type Blob struct {
 	Path      string
 	Sudo      bool
 	Immutable bool
+	Meta      bool
 }
 
 type Config struct {
@@ -302,6 +303,9 @@ func saveRepoConfig(cfg *Config) error {
 		if blob.Immutable {
 			flags = append(flags, "immutable")
 		}
+		if blob.Meta {
+			flags = append(flags, "meta")
+		}
 		collapsed := collapsePath(blob.Path)
 		if len(flags) > 0 {
 			sb.WriteString(fmt.Sprintf("%s = %q\n", name, collapsed+" "+strings.Join(flags, " ")))
@@ -342,8 +346,18 @@ func (c *Config) HasBlobPath(path string) (string, bool) {
 	return "", false
 }
 
-func (c *Config) AddBlob(name, path string, sudo, immutable bool) error {
-	c.Blobs[name] = Blob{Path: path, Sudo: sudo, Immutable: immutable}
+func (c *Config) AddBlob(name, path string, sudo, immutable, meta bool) error {
+	c.Blobs[name] = Blob{Path: path, Sudo: sudo, Immutable: immutable, Meta: meta}
+	return c.Save()
+}
+
+func (c *Config) SetMeta(name string, meta bool) error {
+	blob, ok := c.Blobs[name]
+	if !ok {
+		return fmt.Errorf("blob '%s' not found", name)
+	}
+	blob.Meta = meta
+	c.Blobs[name] = blob
 	return c.Save()
 }
 
@@ -405,6 +419,8 @@ func parseBlob(raw string) (Blob, error) {
 			blob.Sudo = true
 		case "immutable":
 			blob.Immutable = true
+		case "meta":
+			blob.Meta = true
 		default:
 			return Blob{}, fmt.Errorf("unknown flag '%s'", flag)
 		}

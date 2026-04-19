@@ -2,10 +2,13 @@ package commands
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/mcbalaam/graft/internal/config"
 	"github.com/mcbalaam/graft/internal/git"
+	"github.com/mcbalaam/graft/internal/meta"
+	"github.com/mcbalaam/graft/internal/prompt"
 )
 
 // Push commits and pushes blob(s), then updates submodule refs in the main repo.
@@ -66,6 +69,13 @@ func Push(blobName string) error {
 			continue
 		}
 
+		// collect and write metadata before git add so it's included in the commit
+		metaMsg, metaErr := pushMeta(cfg, name, blob)
+		if metaErr != nil {
+			results = append(results, result{name, metaErr, ""})
+			continue
+		}
+
 		if err := runf("add", "-A"); err != nil {
 			results = append(results, result{name, fmt.Errorf("✗ git add: %w", err), ""})
 			continue
@@ -79,7 +89,11 @@ func Push(blobName string) error {
 			continue
 		}
 
-		results = append(results, result{name, nil, "pushed"})
+		msg := "pushed"
+		if metaMsg != "" {
+			msg += "  " + metaMsg
+		}
+		results = append(results, result{name, nil, msg})
 	}
 
 	// update submodule refs in main repo and push (only when pushing all blobs)
@@ -116,4 +130,62 @@ func Push(blobName string) error {
 		return fmt.Errorf("✗ %d blob(s) failed to push", failed)
 	}
 	return nil
+}
+
+// pushMeta collects filesystem metadata and writes .graft-meta.toml before git add.
+// For blobs without the meta flag: detects non-default attributes and queries the user.
+// Returns a short status message and any fatal error.
+func pushMeta(cfg *config.Config, name string, blob config.Blob) (msg string, err error) {
+	m, err := meta.Collect(blob.Path)
+	if err != nil {
+		return "", fmt.Errorf("✗ meta collect: %w", err)
+	}
+
+	enabled := blob.Meta
+	if !enabled {
+		nonDefault := m.NonDefaultFiles()
+		if len(nonDefault) == 0 {
+			return "", nil
+		}
+
+		sort.Strings(nonDefault)
+		fmt.Printf("\n● %s: files with non-default permissions/ownership:\n", name)
+		for _, p := range nonDefault {
+			fm := m.Files[p]
+			fmt.Printf("    %-40s %s:%s  %s\n", p, fm.User, fm.Group, fm.Mode)
+		}
+
+		choice, err := prompt.Query(
+			"● enable meta tracking to preserve ownership/permissions on restore?",
+			[]string{
+				"yes, enable meta for this blob",
+				"no, skip metadata tracking",
+				"cancel push",
+			},
+			1,
+		)
+		if err != nil {
+			return "", fmt.Errorf("✗ prompt: %w", err)
+		}
+		switch choice {
+		case 0:
+			enabled = true
+			if err := cfg.SetMeta(name, true); err != nil {
+				return "", fmt.Errorf("✗ save config: %w", err)
+			}
+		case 1:
+			return "", nil
+		default:
+			return "", fmt.Errorf("cancelled")
+		}
+	}
+
+	if !enabled {
+		return "", nil
+	}
+
+	if err := meta.Save(blob.Path, m); err != nil {
+		return "", fmt.Errorf("✗ meta save: %w", err)
+	}
+	return "(+meta)", nil
 }
