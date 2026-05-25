@@ -4,7 +4,9 @@
 
 Have you ever wished you could back up your `nginx/sites-available` folder and do it simple and quick? Tinker with your configs without breaking everything in process? Store and version your configs on a Git platform? graft is here to help!
 
-![alt text](images/gitrepo.png)
+<img width="1200" alt="graft-init" src="https://github.com/user-attachments/assets/7fe175bd-4c62-4074-966f-98de78f29c7f" />
+<br>
+<br>
 
 Here's how it's done:
 
@@ -16,31 +18,44 @@ Here's how it's done:
 
 2. Put your token in `.config/graft.toml`:
 
-![alt text](images/image-1.png)
+<img width="536" height="106" alt="image" src="https://github.com/user-attachments/assets/226eabd3-c2ae-47b1-9c0b-daf418d2ae3a" />
+<br>
+<br>
 
 3. Add any directory you desire as a blob:
 
-![alt text](images/image-2.png)
+<img width="1200" alt="graft-niri" src="https://github.com/user-attachments/assets/7edd6fa6-0e53-46c9-a525-76c434e86c53" />
+<br>
+<br>
 
 ...even if it's root owned!
 
-![alt text](images/image-6.png)
+<img width="612" height="202" alt="image" src="https://github.com/user-attachments/assets/81072603-c476-455b-af3f-bf5787615914" />
+<br>
+<br>
 
 4. Watch your blobs appear in the repo config:
 
-![alt text](images/image.png)
+<img width="557" height="185" alt="image" src="https://github.com/user-attachments/assets/e7fd261c-34d2-4072-b30e-bcfc9cdd56ad" />
+<br>
+<br>
 
 5. Sync your configs...
 
-![alt text](images/sync.png)
+<img width="557" height="185" alt="image" src="https://github.com/user-attachments/assets/18216a8b-b2de-40b6-bec3-40df7a1a2c1b" />
+<br>
+<br>
+6. Clone the repo on a new machine...
 
-6. Clone the main repo on a new machine...
-
-![alt text](images/image-5.png)
+<img width="745" height="171" alt="image" src="https://github.com/user-attachments/assets/54ce7245-efaa-4e31-a4b5-02fbddb590c3" />
+<br>
+<br>
 
 7. Restore your configuration!
 
-![alt text](images/apply.png)
+<img width="391" height="162" alt="image" src="https://github.com/user-attachments/assets/8d4bedb9-deab-4a55-a29d-266138d33c01" />
+<br>
+<br>
 
 graft is distributed as a single Go binary, but you can also build it yourself: `make install`.
 
