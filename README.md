@@ -10,13 +10,13 @@ Have you ever wished you could back up your `nginx/sites-available` folder and d
 
 Here's how it's done:
 
-0. Create and configure your Access Token ([here for GitHub](https://github.com/settings/tokens))
+0. Have a GitHub Access Token handy ([here for GitHub](https://github.com/settings/tokens)) — `graft init` will ask for it, or see [Tokens](#tokens)
 
 1. Initialize the repository:
 
 `graft init git@github.com:user/backup-repo.git`
 
-2. Put your token in `.config/graft.toml`:
+2. When prompted, paste your token (input is hidden, validated immediately, stored in `~/.config/graft.toml` with mode 0600). You can also skip and set it up later via [Tokens](#tokens):
 
 <img width="536" height="106" alt="image" src="https://github.com/user-attachments/assets/226eabd3-c2ae-47b1-9c0b-daf418d2ae3a" />
 <br>
@@ -58,6 +58,26 @@ Here's how it's done:
 <br>
 
 graft is distributed as a single Go binary, but you can also build it yourself: `make install`.
+
+---
+
+## Tokens
+
+graft needs a GitHub access token (with `repo` scope) to auto-create a remote repo for each blob. It resolves a token in this order:
+
+1. `access_token` in `~/.config/graft.toml`
+2. `GRAFT_TOKEN` environment variable
+3. [`gh`](https://cli.github.com) — `gh auth token`
+
+`graft init` prompts for a token (hidden input) if none of the above resolve, validates it against the API, and stores it in the local config. No token? No problem: `graft this` will ask you to paste a URL of a repo you created manually.
+
+## Reliable by default
+
+- **Pre-flight checks**: before touching anything, graft verifies the remote is reachable (`git ls-remote` with prompts disabled). A missing SSH key or a repo that doesn't exist fails immediately with an actionable message, instead of half-applying.
+- **Auto-rollback**: multi-step commands (`init`, `this`, `apply`) undo every step they already performed when a later step fails — directories removed, submodules unregistered, auto-created GitHub repos deleted, configs and `.git` history restored.
+- **Honest exit codes**: if only the final push failed, graft keeps the local commit and tells you exactly what to push manually.
+
+By default a rollback prints a single notice. Set `verbose_output = true` in `~/.config/graft.toml` to list every rolled-back step.
 
 ---
 

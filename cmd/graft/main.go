@@ -183,12 +183,14 @@ commands:
   init <remote> [repo-path]
         initialize graft repo and config
         repo-path defaults to ~/.local/share/graft
+        asks for a GitHub token if none is configured (optional)
 
   this <name> [--sudo] [--public] [--meta]
         start tracking current directory as blob <name>
         --sudo for root-owned directories
         --public makes the remote repo public (default: private)
         --meta preserve owner/group/permissions/xattr/acl/caps on restore
+        without a token: create the remote repo manually and paste its URL
 
   here [name]
         clone existing blob into current directory

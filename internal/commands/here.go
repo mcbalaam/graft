@@ -43,8 +43,12 @@ func Here(blobName string) error {
 	if err != nil {
 		return fmt.Errorf("✗ cannot find remote for blob '%s': %w", blobName, err)
 	}
+	if err := checkRemoteAccess("blob '"+blobName+"'", cfg.Repo, remoteURL); err != nil {
+		return fmt.Errorf("✗ %w", err)
+	}
 
 	targetDir := cwd
+	updateConfig := false
 
 	blobAbsPath, _ := filepath.Abs(blob.Path)
 	if blobAbsPath != cwd {
@@ -66,9 +70,7 @@ func Here(blobName string) error {
 			}
 			switch choice {
 			case 0:
-				if err := cfg.UpdateBlobPath(blobName, cwd); err != nil {
-					return fmt.Errorf("✗ cannot update config: %w", err)
-				}
+				updateConfig = true
 			case 1:
 				if _, err := os.Stat(blobAbsPath); os.IsNotExist(err) {
 					return fmt.Errorf("✗ path '%s' does not exist, use 'graft apply --force %s'", blobAbsPath, blobName)
@@ -81,8 +83,16 @@ func Here(blobName string) error {
 		}
 	}
 
+	// clone first, update config only on success —
+	// a failed clone must not leave config pointing at an empty path
 	if _, err := git.Run(targetDir, "clone", remoteURL, "."); err != nil {
 		return fmt.Errorf("✗ git clone: %w", err)
+	}
+
+	if updateConfig {
+		if err := cfg.UpdateBlobPath(blobName, cwd); err != nil {
+			return fmt.Errorf("✗ cloned, but cannot update config: %w", err)
+		}
 	}
 
 	fmt.Printf("✓ blob '%s' cloned to %s\n", blobName, targetDir)

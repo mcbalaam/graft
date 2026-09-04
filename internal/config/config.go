@@ -11,9 +11,10 @@ import (
 
 // ~/.config/graft.toml — machine-local, never committed
 type localFile struct {
-	Repo        string            `toml:"repo"`         // legacy: migrated to repos on first load
+	Repo        string            `toml:"repo"` // legacy: migrated to repos on first load
 	Active      string            `toml:"active"`
 	AccessToken string            `toml:"access_token"`
+	Verbose     bool              `toml:"verbose_output"`
 	Repos       map[string]string `toml:"repos"`
 }
 
@@ -48,6 +49,7 @@ type Config struct {
 	Master      Master
 	Blobs       map[string]Blob
 	AccessToken string
+	Verbose     bool   // print each rolled-back step on auto-rollback
 	Repo        string // absolute path to the active main git repo
 
 	activeName      string
@@ -91,6 +93,7 @@ func LoadFrom(localPath string) (*Config, error) {
 		// save migrated config
 		cfg := &Config{
 			AccessToken:     lf.AccessToken,
+			Verbose:         lf.Verbose,
 			activeName:      lf.Active,
 			repos:           lf.Repos,
 			localConfigPath: localPath,
@@ -149,6 +152,7 @@ func LoadFrom(localPath string) (*Config, error) {
 		},
 		Blobs:           make(map[string]Blob),
 		AccessToken:     lf.AccessToken,
+		Verbose:         lf.Verbose,
 		Repo:            repoPath,
 		activeName:      lf.Active,
 		repos:           repos,
@@ -215,6 +219,7 @@ func Init(remote, repoPath, name string, public bool) (*Config, error) {
 
 	if existingCfg != nil {
 		cfg.AccessToken = existingCfg.AccessToken
+		cfg.Verbose = existingCfg.Verbose
 		cfg.repos = existingCfg.repos
 	} else {
 		cfg.repos = make(map[string]string)
@@ -270,10 +275,44 @@ func (c *Config) SetActive(name string) error {
 	return saveLocalConfig(c)
 }
 
+// SetAccessToken stores a GitHub access token in the machine-local config.
+func (c *Config) SetAccessToken(token string) error {
+	c.AccessToken = token
+	return saveLocalConfig(c)
+}
+
+func (c *Config) LocalConfigPath() string {
+	return c.localConfigPath
+}
+
+// LocalPath returns the path of the machine-local config file.
+func LocalPath() (string, error) {
+	return localConfigPath()
+}
+
+// LoadVerbose reads the verbose_output flag from the local config.
+// Any error (missing/unreadable config) yields the default: false.
+func LoadVerbose() bool {
+	path, err := localConfigPath()
+	if err != nil {
+		return false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	var lf localFile
+	if _, err := toml.Decode(string(data), &lf); err != nil {
+		return false
+	}
+	return lf.Verbose
+}
+
 func saveLocalConfig(cfg *Config) error {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("active       = %q\n", cfg.activeName))
 	sb.WriteString(fmt.Sprintf("access_token = %q\n", cfg.AccessToken))
+	sb.WriteString(fmt.Sprintf("verbose_output = %t\n", cfg.Verbose))
 	sb.WriteString("\n[repos]\n")
 	for name, path := range cfg.repos {
 		sb.WriteString(fmt.Sprintf("%s = %q\n", name, collapsePath(path)))

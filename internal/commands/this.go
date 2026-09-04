@@ -1,12 +1,12 @@
 package commands
 
 import (
-	"bytes"
 	"fmt"
-	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/mcbalaam/graft/internal/config"
 	"github.com/mcbalaam/graft/internal/git"
@@ -14,8 +14,10 @@ import (
 	"github.com/mcbalaam/graft/internal/prompt"
 )
 
-// Here begins tracking the current directory as a new blob:
+// This begins tracking the current directory as a new blob:
 // git init, commit, remote, push, submodule add, write to config.
+// Pre-flight checks run before any mutation; on mid-flow failure every
+// step already performed is rolled back in reverse order.
 func This(blobName string, sudo, public, metaFlag bool) error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -33,7 +35,61 @@ func This(blobName string, sudo, public, metaFlag bool) error {
 
 	submoduleName := cfg.SubmoduleName(blobName)
 	remoteURL := cfg.Master.BaseURL + "/" + submoduleName + ".git"
+	githubHosted := strings.Contains(cfg.Master.BaseURL, "github.com")
 
+	// pre-flight: the main repo remote is reachable — a proxy for push access
+	// to the host, since the blob's own remote does not exist yet.
+	if err := checkRemoteAccess("main", cfg.Repo, cfg.Master.Remote); err != nil {
+		return fmt.Errorf("✗ %w", err)
+	}
+
+	// token / manual remote decision — before any mutations.
+	// Only GitHub supports auto-creating remotes via API; for anything else
+	// the blob remote must already exist.
+	token := ""
+	manualRemote := false
+	if githubHosted {
+		token = resolveToken(cfg)
+		if token == "" {
+			t, u, err := ensureTokenForThis(cfg)
+			if err != nil {
+				return err
+			}
+			token = t
+			if u != "" {
+				remoteURL = u
+				manualRemote = true
+				fmt.Printf("● using manual remote %s — graft will not create or delete it\n", remoteURL)
+			}
+		}
+	} else {
+		fmt.Printf("● remote host is not GitHub — graft will not auto-create %s, it must exist\n", remoteURL)
+		if err := checkRemoteAccess("blob", cfg.Repo, remoteURL); err != nil {
+			return fmt.Errorf("✗ %w", err)
+		}
+	}
+
+	tx := &rollback{verbose: cfg.Verbose}
+	autoCreate := githubHosted && !manualRemote
+	if err := trackBlob(cfg, blobName, cwd, submoduleName, remoteURL, token, autoCreate, sudo, public, metaFlag, tx); err != nil {
+		tx.undo()
+		return err
+	}
+	tx.commit()
+
+	if autoCreate {
+		visibility := "private"
+		if cfg.Master.Public || public {
+			visibility = "public"
+		}
+		fmt.Printf("✓ blob '%s' registered as %s, now tracking (%s)\n", blobName, submoduleName, visibility)
+	} else {
+		fmt.Printf("✓ blob '%s' registered as %s, now tracking\n", blobName, submoduleName)
+	}
+	return nil
+}
+
+func trackBlob(cfg *config.Config, blobName, cwd, submoduleName, remoteURL, token string, autoCreate, sudo, public, metaFlag bool, tx *rollback) error {
 	gitRun := git.Run
 	if sudo {
 		gitRun = git.RunSudo
@@ -71,7 +127,15 @@ func This(blobName string, sudo, public, metaFlag bool) error {
 		return nil
 	}
 
+	// the blob registry in the repo config is written last (AddBlob)
+	undoCfg, err := backupFile(cfg.RepoConfigPath())
+	if err != nil {
+		return fmt.Errorf("✗ cannot backup repo config: %w", err)
+	}
+	tx.push("config "+cfg.RepoConfigPath(), undoCfg)
+
 	// handle existing .git setup:
+	undoHistory := removeGitDir(cwd, sudo) // default: undo = remove the fresh .git
 	if git.IsRepo(".") {
 		choice, err := prompt.Query(
 			"● directory is already a git repo, what to do?",
@@ -88,16 +152,23 @@ func This(blobName string, sudo, public, metaFlag bool) error {
 		switch choice {
 		case 0:
 			// use as-is, adds remote below. phew.
-		case 1: // purging the old .git folder
-			if sudo {
-				cmd := exec.Command("sudo", "rm", "-rf", ".git")
-				cmd.Dir = cwd
-				if out, err := cmd.CombinedOutput(); err != nil {
-					return fmt.Errorf("✗ cannot remove .git: %w: %s", err, out)
+			if git.HasCommits(".") {
+				oldHead, err := gitRun(".", "rev-parse", "HEAD")
+				if err != nil {
+					return fmt.Errorf("✗ cannot read HEAD: %w", err)
 				}
-			} else if err := os.RemoveAll(".git"); err != nil {
-				return fmt.Errorf("✗ cannot remove .git: %w", err)
+				undoHistory = func() error {
+					return run("reset", "--hard", strings.TrimSpace(oldHead))
+				}
 			}
+		case 1: // purging the old .git folder
+			restore, discard, err := stashGitDir(cwd, sudo)
+			if err != nil {
+				return fmt.Errorf("✗ %w", err)
+			}
+			tx.push("restored previous .git", restore)
+			tx.onCommit(func() { _ = discard() })
+			undoHistory = nil // the stash restore covers the reinitialized repo
 			if err := run("init"); err != nil {
 				return fmt.Errorf("✗ git init: %w", err)
 			}
@@ -110,6 +181,9 @@ func This(blobName string, sudo, public, metaFlag bool) error {
 			return fmt.Errorf("✗ git init: %w", err)
 		}
 	}
+	if undoHistory != nil {
+		tx.push("blob repository state", undoHistory)
+	}
 
 	// collect metadata and optionally write .graft-meta.toml before the first commit
 	metaEnabled, err := resolveMetaFlag(cwd, metaFlag)
@@ -117,6 +191,12 @@ func This(blobName string, sudo, public, metaFlag bool) error {
 		return err
 	}
 	if metaEnabled {
+		undoMeta, err := backupFile(filepath.Join(cwd, meta.FileName))
+		if err != nil {
+			return fmt.Errorf("✗ cannot backup %s: %w", meta.FileName, err)
+		}
+		tx.push("removed "+meta.FileName, undoMeta)
+
 		m, err := meta.Collect(cwd)
 		if err != nil {
 			return fmt.Errorf("✗ meta collect: %w", err)
@@ -161,9 +241,16 @@ func This(blobName string, sudo, public, metaFlag bool) error {
 		}
 		switch choice {
 		case 0:
+			oldURL, err := gitRun(".", "remote", "get-url", "origin")
+			if err != nil {
+				return fmt.Errorf("✗ cannot read remote URL: %w", err)
+			}
 			if err := run("remote", "set-url", "origin", remoteURL); err != nil {
 				return fmt.Errorf("✗ git remote set-url: %w", err)
 			}
+			tx.push("restored original remote URL", func() error {
+				return run("remote", "set-url", "origin", strings.TrimSpace(oldURL))
+			})
 		case 1:
 			// keep as-is (this totally isn't going to break anything...)
 		case 2:
@@ -174,10 +261,24 @@ func This(blobName string, sudo, public, metaFlag bool) error {
 		if err := run("remote", "add", "origin", remoteURL); err != nil {
 			return fmt.Errorf("✗ git remote add: %w", err)
 		}
+		tx.push("removed blob remote", func() error { return run("remote", "remove", "origin") })
 	}
 
-	if err := createRemoteRepo(cfg, submoduleName, cfg.Master.Public || public); err != nil {
-		return fmt.Errorf("✗ create remote repo: %w", err)
+	if autoCreate {
+		created, err := createRemoteRepo(token, submoduleName, cfg.Master.Public || public)
+		if err != nil {
+			return fmt.Errorf("✗ create remote repo: %w", err)
+		}
+		if created {
+			owner := ownerFromBaseURL(cfg.Master.BaseURL)
+			if owner == "" {
+				fmt.Printf("● could not derive repo owner from %s — auto-created repo won't be deleted on rollback\n", cfg.Master.BaseURL)
+			} else {
+				tx.push(fmt.Sprintf("deleted auto-created remote repo %s/%s", owner, submoduleName), func() error {
+					return deleteRemoteRepo(token, owner, submoduleName)
+				})
+			}
+		}
 	}
 
 	if err := runNet("push", "--force", "--set-upstream", "origin", "HEAD"); err != nil {
@@ -185,6 +286,10 @@ func This(blobName string, sudo, public, metaFlag bool) error {
 	}
 
 	// register as submodule in the main repo
+	oldMain, err := git.Run(cfg.Repo, "rev-parse", "HEAD")
+	if err == nil {
+		tx.push("main repo submodule registration", undoSubmodule(cfg.Repo, strings.TrimSpace(oldMain), submoduleName))
+	}
 	if err := runIn(cfg.Repo, "submodule", "add", remoteURL, submoduleName); err != nil {
 		return fmt.Errorf("✗ git submodule add: %w", err)
 	}
@@ -201,13 +306,41 @@ func This(blobName string, sudo, public, metaFlag bool) error {
 	if err := cfg.AddBlob(blobName, cwd, sudo, false, metaEnabled); err != nil {
 		return fmt.Errorf("✗ cannot save config: %w", err)
 	}
-
-	visibility := "private"
-	if cfg.Master.Public || public {
-		visibility = "public"
-	}
-	fmt.Printf("✓ blob '%s' registered as %s, now tracking (%s)\n", blobName, submoduleName, visibility)
 	return nil
+}
+
+// undoSubmodule returns an undo func reverting a submodule add/commit in the
+// main repo: hard-reset to the pre-add commit plus leftover cleanup.
+func undoSubmodule(repoPath, oldHead, submoduleName string) func() error {
+	return func() error {
+		if out, err := git.Run(repoPath, "submodule", "deinit", "-f", submoduleName); err != nil {
+			// deinit fails when the submodule was never fully registered — not fatal
+			_ = out
+		}
+		if out, err := git.Run(repoPath, "reset", "--hard", oldHead); err != nil {
+			return fmt.Errorf("git reset --hard: %w: %s", err, out)
+		}
+		git.Run(repoPath, "config", "--file", ".gitmodules", "--remove-section", "submodule."+submoduleName)
+		git.Run(repoPath, "config", "--remove-section", "submodule."+submoduleName)
+		if err := os.RemoveAll(filepath.Join(repoPath, submoduleName)); err != nil {
+			return err
+		}
+		return os.RemoveAll(filepath.Join(repoPath, ".git", "modules", submoduleName))
+	}
+}
+
+// removeGitDir returns an undo func deleting a .git directory (via sudo when set).
+func removeGitDir(dir string, sudo bool) func() error {
+	return func() error {
+		if sudo {
+			out, err := exec.Command("sudo", "rm", "-rf", filepath.Join(dir, ".git")).CombinedOutput()
+			if err != nil {
+				return fmt.Errorf("%w: %s", err, out)
+			}
+			return nil
+		}
+		return os.RemoveAll(filepath.Join(dir, ".git"))
+	}
 }
 
 // resolveMetaFlag returns whether meta tracking should be enabled.
@@ -253,33 +386,4 @@ func resolveMetaFlag(dir string, metaFlag bool) (bool, error) {
 	default:
 		return false, fmt.Errorf("cancelled")
 	}
-}
-
-// createRemoteRepo creates a private repo via GitHub API.
-// Skips silently if the repo already exists (422).
-func createRemoteRepo(cfg *config.Config, name string, public bool) error {
-	token := cfg.AccessToken
-	if token == "" {
-		return fmt.Errorf("access_token not set in config — add it to graft.toml or create the remote repo manually")
-	}
-
-	body := fmt.Sprintf(`{"name":%q,"private":%t}`, name, !public)
-	req, err := http.NewRequest("POST", "https://api.github.com/user/repos", bytes.NewBufferString(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("API request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// 201 Created — ok, 422 Unprocessable — already exists, both are fine
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusUnprocessableEntity {
-		return fmt.Errorf("unexpected response: %s", resp.Status)
-	}
-	return nil
 }

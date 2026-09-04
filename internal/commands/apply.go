@@ -84,6 +84,21 @@ func applyOne(cfg *config.Config, name string, blob config.Blob, force bool) err
 	if !force {
 		return fmt.Errorf("✗ path '%s' does not exist, use --force to create", path)
 	}
+
+	// resolve and verify the remote BEFORE creating anything on disk,
+	// so a failed clone never leaves orphan directories behind
+	submoduleName := cfg.SubmoduleName(name)
+	remoteURL, err := git.SubmoduleURL(cfg.Repo, submoduleName)
+	if err != nil {
+		return fmt.Errorf("✗ cannot find remote: %w", err)
+	}
+	if err := checkRemoteAccess("blob '"+name+"'", cfg.Repo, remoteURL); err != nil {
+		return err
+	}
+
+	tx := &rollback{verbose: cfg.Verbose}
+	defer func() { tx.undo() }() // no-op once commit() ran
+
 	if blob.Sudo {
 		if err := sudoMkdirChown(path); err != nil {
 			return fmt.Errorf("sudo mkdir '%s': %w", path, err)
@@ -93,16 +108,12 @@ func applyOne(cfg *config.Config, name string, blob config.Blob, force bool) err
 			return fmt.Errorf("✗ mkdir '%s': %w", path, err)
 		}
 	}
-
-	submoduleName := cfg.SubmoduleName(name)
-	remoteURL, err := git.SubmoduleURL(cfg.Repo, submoduleName)
-	if err != nil {
-		return fmt.Errorf("✗ cannot find remote: %w", err)
-	}
+	tx.push("removed created directory "+path, func() error { return os.RemoveAll(path) })
 
 	if out, err := git.Run(path, "clone", remoteURL, "."); err != nil {
 		return fmt.Errorf("✗ git clone: %w: %s", err, out)
 	}
+	tx.commit()
 
 	fmt.Printf("  ✓ %s → %s\n", name, path)
 

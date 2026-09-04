@@ -59,7 +59,9 @@ func Undo(blobName string) error {
 		return fmt.Errorf("✗ git push: %w: %s", err, out)
 	}
 
-	updateMainRepoRef(cfg)
+	if err := updateMainRepoRef(cfg); err != nil {
+		return fmt.Errorf("✗ %s: revert pushed, but main repo ref update failed: %w", name, err)
+	}
 
 	fmt.Printf("✓ %s: reverted and pushed\n", name)
 	return nil
@@ -137,19 +139,32 @@ func resolveBlobByNameOrCwd(cfg *config.Config, name string) (string, config.Blo
 }
 
 // updateMainRepoRef updates submodule refs in the main repo after a blob push.
-func updateMainRepoRef(cfg *config.Config) {
+// Returns an error if the ref update or its push fails (the local commit is
+// kept and reported so the user can recover manually).
+func updateMainRepoRef(cfg *config.Config) error {
 	submodules, _ := git.ListSubmodules(cfg.Repo)
 	if len(submodules) == 0 {
-		return
+		return nil
 	}
-	git.Run(cfg.Repo, "submodule", "update", "--remote")
-	out, _ := git.Run(cfg.Repo, "status", "--porcelain")
+	if out, err := git.Run(cfg.Repo, "submodule", "update", "--remote"); err != nil {
+		// not fatal: one broken submodule shouldn't block ref refresh of the others
+		fmt.Printf("● warning: submodule update --remote: %s\n", out)
+	}
+	out, err := git.Run(cfg.Repo, "status", "--porcelain")
+	if err != nil {
+		return fmt.Errorf("git status: %w: %s", err, out)
+	}
 	if strings.TrimSpace(out) == "" {
-		return
+		return nil
 	}
-	git.Run(cfg.Repo, "add", "-A")
-	git.Run(cfg.Repo, "commit", "-m", "graft: update refs")
-	if _, err := git.Run(cfg.Repo, "push"); err != nil {
-		fmt.Printf("  ✗ could not push main repo ref update: %v\n", err)
+	if out, err := git.Run(cfg.Repo, "add", "-A"); err != nil {
+		return fmt.Errorf("git add: %w: %s", err, out)
 	}
+	if out, err := git.Run(cfg.Repo, "commit", "-m", "graft: update refs"); err != nil {
+		return fmt.Errorf("git commit: %w: %s", err, out)
+	}
+	if out, err := git.Run(cfg.Repo, "push"); err != nil {
+		return fmt.Errorf("git push: %w: %s (refs are committed locally — push manually in %s)", err, out, cfg.Repo)
+	}
+	return nil
 }

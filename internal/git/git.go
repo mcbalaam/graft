@@ -23,6 +23,15 @@ func RunSudo(dir string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), err
 }
 
+// RunWithEnv runs git with extra environment variables appended to os.Environ().
+func RunWithEnv(dir string, env []string, args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), env...)
+	out, err := cmd.CombinedOutput()
+	return strings.TrimSpace(string(out)), err
+}
+
 func IsRepo(path string) bool {
 	info, err := os.Stat(filepath.Join(path, ".git"))
 	return err == nil && info.IsDir()

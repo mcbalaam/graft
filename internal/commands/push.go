@@ -98,17 +98,8 @@ func Push(blobName string) error {
 
 	// update submodule refs in main repo and push (only when pushing all blobs)
 	if blobName == "" {
-		submodules, _ := git.ListSubmodules(cfg.Repo)
-		if len(submodules) > 0 {
-			git.Run(cfg.Repo, "submodule", "update", "--remote")
-			out, _ := git.Run(cfg.Repo, "status", "--porcelain")
-			if strings.TrimSpace(out) != "" {
-				git.Run(cfg.Repo, "add", "-A")
-				git.Run(cfg.Repo, "commit", "-m", "graft: push refs")
-				if _, err := git.Run(cfg.Repo, "push"); err != nil {
-					fmt.Printf("✗ could not push main repo: %v\n", err)
-				}
-			}
+		if err := updateMainRepoRef(cfg); err != nil {
+			results = append(results, result{"(main repo refs)", err, ""})
 		}
 	}
 

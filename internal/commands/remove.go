@@ -39,12 +39,13 @@ func Remove(blobName string) error {
 	if _, err := git.Run(cfg.Repo, "commit", "-m", "graft: remove submodule "+submoduleName); err != nil {
 		return fmt.Errorf("✗ git commit: %w", err)
 	}
-	if _, err := git.Run(cfg.Repo, "push"); err != nil {
-		fmt.Printf("✗ could not push after remove: %v\n", err)
-	}
 
 	if err := cfg.RemoveBlob(blobName); err != nil {
 		return fmt.Errorf("✗ cannot update config: %w", err)
+	}
+
+	if _, err := git.Run(cfg.Repo, "push"); err != nil {
+		return fmt.Errorf("✗ git push: %w — submodule is removed locally and committed, push manually in %s", err, cfg.Repo)
 	}
 
 	fmt.Printf("✓ blob '%s' removed\n", blobName)
