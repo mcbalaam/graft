@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/mcbalaam/graft/internal/config"
@@ -22,10 +23,7 @@ func Undo(blobName string) error {
 		return err
 	}
 
-	run := git.Run
-	if blob.Sudo {
-		run = git.RunSudo
-	}
+	run := gitExecFor(blob.Sudo)
 
 	head, err := run(blob.Path, "log", "-1", "--oneline")
 	if err != nil {
@@ -80,10 +78,7 @@ func Reset(blobName string) error {
 		return err
 	}
 
-	run := git.Run
-	if blob.Sudo {
-		run = git.RunSudo
-	}
+	run := gitExecFor(blob.Sudo)
 
 	out, _ := run(blob.Path, "status", "--porcelain")
 	if strings.TrimSpace(out) != "" {
@@ -127,7 +122,7 @@ func resolveBlobByNameOrCwd(cfg *config.Config, name string) (string, config.Blo
 		}
 		return name, blob, nil
 	}
-	cwd, err := git.AbsPath(".")
+	cwd, err := filepath.Abs(".")
 	if err != nil {
 		return "", config.Blob{}, fmt.Errorf("✗ cannot resolve current directory: %w", err)
 	}

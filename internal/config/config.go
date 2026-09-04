@@ -422,7 +422,7 @@ func (c *Config) RepoConfigPath() string {
 	return c.repoConfigPath
 }
 
-// parseBlob парсит строку вида: "/path/to/dir" sudo immutable
+// parseBlob parses a blob line like: "/path/to/dir" sudo immutable
 func parseBlob(raw string) (Blob, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -501,13 +501,4 @@ func localConfigPath() (string, error) {
 		return "", fmt.Errorf("cannot determine home directory: %w", err)
 	}
 	return filepath.Join(home, ".config", "graft.toml"), nil
-}
-
-// repoNameFromPath derives a short name from a repo path (last path segment).
-func repoNameFromPath(path string) string {
-	base := filepath.Base(path)
-	if base == "" || base == "." {
-		return "default"
-	}
-	return base
 }

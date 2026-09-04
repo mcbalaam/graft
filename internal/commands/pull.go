@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/mcbalaam/graft/internal/config"
-	"github.com/mcbalaam/graft/internal/git"
 	"github.com/mcbalaam/graft/internal/prompt"
 )
 
@@ -17,83 +16,53 @@ func Pull(blobName string, force bool) error {
 		return fmt.Errorf("✗ unable to read config: %w", err)
 	}
 
-	blobs := cfg.Blobs
-	if blobName != "" {
-		blob, ok := cfg.Blobs[blobName]
-		if !ok {
-			return fmt.Errorf("✗ blob '%s' not found in config", blobName)
-		}
-		blobs = map[string]config.Blob{blobName: blob}
+	blobs, err := selectBlobs(cfg, blobName)
+	if err != nil {
+		return fmt.Errorf("✗ %w", err)
 	}
 
-	type result struct {
-		name string
-		err  error
-		msg  string
-	}
-	var results []result
-
+	var results []blobResult
 	for name, blob := range blobs {
-		run := git.Run
-		if blob.Sudo {
-			run = git.RunSudo
-		}
-
-		if force {
-			if _, err := run(blob.Path, "fetch", "origin"); err != nil {
-				results = append(results, result{name, fmt.Errorf("git fetch: %w", err), ""})
-				continue
-			}
-			if _, err := run(blob.Path, "reset", "--hard", "@{upstream}"); err != nil {
-				results = append(results, result{name, fmt.Errorf("git reset: %w", err), ""})
-				continue
-			}
-			results = append(results, result{name, nil, "reset to remote"})
-			continue
-		}
-
-		out, err := run(blob.Path, "pull")
-		if err != nil {
-			if strings.Contains(out, "CONFLICT") {
-				if resolveErr := resolveConflict(run, blob.Path, name); resolveErr != nil {
-					results = append(results, result{name, resolveErr, ""})
-				} else {
-					results = append(results, result{name, nil, "conflict resolved"})
-				}
-			} else {
-				results = append(results, result{name, fmt.Errorf("git pull: %w: %s", err, out), ""})
-			}
-			continue
-		}
-
-		if strings.Contains(out, "Already up to date") {
-			results = append(results, result{name, nil, "already up to date"})
-		} else {
-			results = append(results, result{name, nil, "updated"})
-		}
+		results = append(results, pullOne(name, blob, force))
 	}
 
-	fmt.Println()
-	fmt.Printf("[%s] pull summary:\n", cfg.ActiveName())
-	ok, failed := 0, 0
-	for _, r := range results {
-		if r.err != nil {
-			fmt.Printf("  ✗ %s: %v\n", r.name, r.err)
-			failed++
-		} else {
-			fmt.Printf("  ✓ %s: %s\n", r.name, r.msg)
-			ok++
-		}
-	}
-	fmt.Printf("  %d ok, %d failed\n", ok, failed)
-
-	if failed > 0 {
-		return fmt.Errorf("✗ %d blob(s) failed to pull", failed)
+	if failed := printBlobSummary(cfg.ActiveName(), "pull", results); failed > 0 {
+		return failedErr("pull", failed)
 	}
 	return nil
 }
 
-func resolveConflict(run func(string, ...string) (string, error), path, name string) error {
+func pullOne(name string, blob config.Blob, force bool) blobResult {
+	run := gitExecFor(blob.Sudo)
+
+	if force {
+		if out, err := run(blob.Path, "fetch", "origin"); err != nil {
+			return blobResult{name, fmt.Errorf("git fetch: %w: %s", err, out), ""}
+		}
+		if out, err := run(blob.Path, "reset", "--hard", "@{upstream}"); err != nil {
+			return blobResult{name, fmt.Errorf("git reset: %w: %s", err, out), ""}
+		}
+		return blobResult{name, nil, "reset to remote"}
+	}
+
+	out, err := run(blob.Path, "pull")
+	if err != nil {
+		if strings.Contains(out, "CONFLICT") {
+			if resolveErr := resolveConflict(run, blob.Path, name); resolveErr != nil {
+				return blobResult{name, resolveErr, ""}
+			}
+			return blobResult{name, nil, "conflict resolved"}
+		}
+		return blobResult{name, fmt.Errorf("git pull: %w: %s", err, out), ""}
+	}
+
+	if strings.Contains(out, "Already up to date") {
+		return blobResult{name, nil, "already up to date"}
+	}
+	return blobResult{name, nil, "updated"}
+}
+
+func resolveConflict(run gitFunc, path, name string) error {
 	choice, err := prompt.Query(
 		fmt.Sprintf("conflict in blob: %s", name),
 		[]string{

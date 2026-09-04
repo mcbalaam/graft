@@ -117,6 +117,6 @@ func ensureTokenForThis(cfg *config.Config) (token string, manualURL string, err
 		}
 		return "", u, nil
 	default:
-		return "", "", fmt.Errorf("cancelled")
+		return "", "", errCancelled
 	}
 }

@@ -86,13 +86,7 @@ func initRepo(remote, repoPath, name string, defaultPublic bool, tx *rollback) (
 	}
 	tx.push("git init", func() error { return os.RemoveAll(filepath.Join(repoPath, ".git")) })
 
-	run := func(args ...string) error {
-		out, err := git.Run(repoPath, args...)
-		if err != nil {
-			return fmt.Errorf("%w: %s", err, out)
-		}
-		return nil
-	}
+	run := func(args ...string) error { return runE(git.Run, repoPath, args...) }
 
 	if err := run("init"); err != nil {
 		return nil, fmt.Errorf("✗ git init: %w", err)

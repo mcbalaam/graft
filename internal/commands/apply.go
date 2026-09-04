@@ -20,44 +20,25 @@ func Apply(blobName string, force bool) error {
 		return fmt.Errorf("✗ unable to read config: %w", err)
 	}
 
+	blobs, err := selectBlobs(cfg, blobName)
+	if err != nil {
+		return fmt.Errorf("✗ %w", err)
+	}
+
 	if blobName != "" {
-		blob, ok := cfg.Blobs[blobName]
-		if !ok {
-			return fmt.Errorf("✗ blob '%s' not found in config", blobName)
-		}
-		if err := applyOne(cfg, blobName, blob, force); err != nil {
+		if err := applyOne(cfg, blobName, blobs[blobName], force); err != nil {
 			return fmt.Errorf("✗ %w", err)
 		}
 		return nil
 	}
 
-	// apply all — continue on errors, collect results (wil be displayed later)
-	type result struct {
-		name string
-		err  error
+	// apply all — continue on errors, collect results for the summary
+	var results []blobResult
+	for name, blob := range blobs {
+		results = append(results, blobResult{name: name, err: applyOne(cfg, name, blob, force)})
 	}
-	var results []result
-	for name, blob := range cfg.Blobs {
-		err := applyOne(cfg, name, blob, force)
-		results = append(results, result{name, err})
-	}
-
-	fmt.Println()
-	fmt.Printf("[%s] apply summary:\n", cfg.ActiveName())
-	ok, failed := 0, 0
-	for _, r := range results {
-		if r.err != nil {
-			fmt.Printf("  ✗ %s: %v\n", r.name, r.err)
-			failed++
-		} else {
-			fmt.Printf("  ✓ %s\n", r.name)
-			ok++
-		}
-	}
-	fmt.Printf("  %d ok, %d failed\n", ok, failed)
-
-	if failed > 0 {
-		return fmt.Errorf("✗ %d blob(s) failed to apply", failed)
+	if failed := printBlobSummary(cfg.ActiveName(), "apply", results); failed > 0 {
+		return failedErr("apply", failed)
 	}
 	return nil
 }
@@ -70,19 +51,15 @@ func applyOne(cfg *config.Config, name string, blob config.Blob, force bool) err
 
 	if exists {
 		if git.IsRepo(path) {
-			run := git.Run
-			if blob.Sudo {
-				run = git.RunSudo
-			}
-			status := repoStatus(run, path)
+			status := repoStatus(gitExecFor(blob.Sudo), path)
 			fmt.Printf("  ➜ %s: already applied, %s\n", name, status)
 			return nil
 		}
-		return fmt.Errorf("✗ path '%s' exists but is not a git repo — remove it manually first", path)
+		return fmt.Errorf("path '%s' exists but is not a git repo — remove it manually first", path)
 	}
 
 	if !force {
-		return fmt.Errorf("✗ path '%s' does not exist, use --force to create", path)
+		return fmt.Errorf("path '%s' does not exist, use --force to create", path)
 	}
 
 	// resolve and verify the remote BEFORE creating anything on disk,
@@ -90,7 +67,7 @@ func applyOne(cfg *config.Config, name string, blob config.Blob, force bool) err
 	submoduleName := cfg.SubmoduleName(name)
 	remoteURL, err := git.SubmoduleURL(cfg.Repo, submoduleName)
 	if err != nil {
-		return fmt.Errorf("✗ cannot find remote: %w", err)
+		return fmt.Errorf("cannot find remote: %w", err)
 	}
 	if err := checkRemoteAccess("blob '"+name+"'", cfg.Repo, remoteURL); err != nil {
 		return err
@@ -105,13 +82,13 @@ func applyOne(cfg *config.Config, name string, blob config.Blob, force bool) err
 		}
 	} else {
 		if err := os.MkdirAll(path, 0755); err != nil {
-			return fmt.Errorf("✗ mkdir '%s': %w", path, err)
+			return fmt.Errorf("mkdir '%s': %w", path, err)
 		}
 	}
 	tx.push("removed created directory "+path, func() error { return os.RemoveAll(path) })
 
 	if out, err := git.Run(path, "clone", remoteURL, "."); err != nil {
-		return fmt.Errorf("✗ git clone: %w: %s", err, out)
+		return fmt.Errorf("git clone: %w: %s", err, out)
 	}
 	tx.commit()
 
@@ -149,13 +126,13 @@ func sudoMkdirChown(path string) error {
 	}
 
 	if out, err := exec.Command("sudo", "chown", u.Username, path).CombinedOutput(); err != nil {
-		return fmt.Errorf("✗ %w: %s", err, out)
+		return fmt.Errorf("%w: %s", err, out)
 	}
 	return nil
 }
 
 // repoStatus returns a short human-readable local status for an already-applied blob.
-func repoStatus(run func(string, ...string) (string, error), path string) string {
+func repoStatus(run gitFunc, path string) string {
 	out, err := run(path, "status", "--porcelain")
 	if err == nil && strings.TrimSpace(out) != "" {
 		return "has local changes"

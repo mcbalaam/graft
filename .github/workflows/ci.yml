@@ -20,3 +20,6 @@ jobs:
 
       - name: vet
         run: go vet ./...
+
+      - name: test
+        run: go test ./...

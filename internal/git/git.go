@@ -97,31 +97,3 @@ func ListSubmodules(repoPath string) (map[string]string, error) {
 
 	return result, nil
 }
-
-func IsSubmodule(repoPath, path string) bool {
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return false
-	}
-
-	submodules, err := ListSubmodules(repoPath)
-	if err != nil {
-		return false
-	}
-
-	for _, subPath := range submodules {
-		absSubPath, err := filepath.Abs(filepath.Join(repoPath, subPath))
-		if err != nil {
-			continue
-		}
-		if absPath == absSubPath {
-			return true
-		}
-	}
-
-	return false
-}
-
-func AbsPath(path string) (string, error) {
-	return filepath.Abs(path)
-}

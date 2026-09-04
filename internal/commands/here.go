@@ -10,7 +10,7 @@ import (
 	"github.com/mcbalaam/graft/internal/prompt"
 )
 
-// This clones an existing blob into the current directory.
+// Here clones an existing blob into the current directory.
 // Without args: finds blob whose configured path matches cwd.
 // With name: clones that blob here; asks to reassign path if it differs
 // (unless immutable — then clones anyway and notes that config won't be updated).
@@ -20,7 +20,7 @@ func Here(blobName string) error {
 		return fmt.Errorf("✗ unable to read config: %w", err)
 	}
 
-	cwd, err := git.AbsPath(".")
+	cwd, err := filepath.Abs(".")
 	if err != nil {
 		return fmt.Errorf("✗ cannot resolve current directory: %w", err)
 	}
